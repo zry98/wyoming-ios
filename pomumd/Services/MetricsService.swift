@@ -43,7 +43,6 @@ actor MetricsCollector {
     .lowercased()
 
   // application metrics
-  private let activeConnectionsGauge: Metrics.Gauge
   private let totalConnectionsCounter: Metrics.Counter
   private let errorCounter: Metrics.Counter
   private let audioBytesCounter: Metrics.Counter
@@ -54,7 +53,6 @@ actor MetricsCollector {
   private let restartCounter: Metrics.Counter
   private let networkBytesInCounter: Metrics.Counter
   private let networkBytesOutCounter: Metrics.Counter
-  private var activeConnections = 0
 
   // hardware metrics
   private let cpuUsageTotalGauge: Metrics.Gauge
@@ -70,7 +68,6 @@ actor MetricsCollector {
     self.memoryFreeGauge = Gauge(label: "\(namespace)_memory_free_bytes")
     self.memoryAppUsedGauge = Gauge(label: "\(namespace)_memory_app_used_bytes")
 
-    self.activeConnectionsGauge = Gauge(label: "\(namespace)_connections_active")
     self.totalConnectionsCounter = Counter(label: "\(namespace)_connections_total")
     self.errorCounter = Counter(label: "\(namespace)_connections_errors_total")
     self.audioBytesCounter = Counter(label: "\(namespace)_audio_bytes_processed_total")
@@ -91,15 +88,8 @@ actor MetricsCollector {
     restartCounter.increment()
   }
 
-  func recordConnection(active: Bool) {
-    if active {
-      activeConnections += 1
-      activeConnectionsGauge.record(activeConnections)
-      totalConnectionsCounter.increment()
-    } else {
-      activeConnections = max(0, activeConnections - 1)
-      activeConnectionsGauge.record(activeConnections)
-    }
+  func recordConnection() {
+    totalConnectionsCounter.increment()
   }
 
   func recordConnectionError() {
