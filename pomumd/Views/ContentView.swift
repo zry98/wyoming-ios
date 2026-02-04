@@ -66,7 +66,6 @@ struct ContentView: View {
           }
 
           Section {
-
             HStack {
               Text("IP Address")
               Spacer()

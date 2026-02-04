@@ -6,8 +6,8 @@ struct STTLanguagesListView: View {
   @State private var sortedLanguages: [String] = []
 
   var body: some View {
-    Section("Tap a language to set it as default") {
-      List {
+    List {
+      Section("Tap a language to set it as default") {
         ForEach(sortedLanguages, id: \.self) { language in
           HStack {
             VStack(alignment: .leading, spacing: 4) {
@@ -35,15 +35,15 @@ struct STTLanguagesListView: View {
           }
         }
       }
-      .navigationTitle("STT Languages")
-      .inlineNavigationBarTitle()
-      .onAppear {
-        languages = STTService.getLanguages()
-        updateSortedLanguages()
-      }
-      .onChange(of: languages) { _ in
-        updateSortedLanguages()
-      }
+    }
+    .navigationTitle("STT Languages")
+    .inlineNavigationBarTitle()
+    .onAppear {
+      languages = STTService.getLanguages()
+      updateSortedLanguages()
+    }
+    .onChange(of: languages) { _ in
+      updateSortedLanguages()
     }
   }
 

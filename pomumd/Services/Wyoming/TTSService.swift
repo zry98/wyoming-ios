@@ -15,10 +15,12 @@ class TTSService {
 
   private let synthesizer: AVSpeechSynthesizer
   private let metricsCollector: MetricsCollector
+  private let settingsManager: SettingsManager
 
-  init(metricsCollector: MetricsCollector) {
+  init(metricsCollector: MetricsCollector, settingsManager: SettingsManager) {
     self.synthesizer = AVSpeechSynthesizer()
     self.metricsCollector = metricsCollector
+    self.settingsManager = settingsManager
   }
 
   deinit {
@@ -208,31 +210,35 @@ class TTSService {
 
     let utterance: AVSpeechUtterance
 
-    if isValidSSML(trimmedText) {
-      ttsLogger.info("Attempting SSML synthesis on valid input")
+    // check if input looks like an XML tag
+    if trimmedText.hasPrefix("<") && trimmedText.contains(">") {
+      if isValidSSML(trimmedText) {
+        ttsLogger.info("Attempting SSML synthesis on valid input")
 
-      var ssmlText = trimmedText
-      if trimmedText.lowercased().hasPrefix("<speak") {
-        ssmlText = "<?xml version=\"1.0\"?>\n" + trimmedText
-      }
-      ssmlText = sanitizeSSML(ssmlText)
+        var ssmlText = trimmedText
+        if trimmedText.lowercased().hasPrefix("<speak") {
+          ssmlText = "<?xml version=\"1.0\"?>\n" + trimmedText
+        }
+        ssmlText = sanitizeSSML(ssmlText)
 
-      if let ssmlUtterance = AVSpeechUtterance(ssmlRepresentation: ssmlText) {
-        utterance = ssmlUtterance
-        ttsLogger.debug("SSML parsing succeeded")
+        if let ssmlUtterance = AVSpeechUtterance(ssmlRepresentation: ssmlText) {
+          utterance = ssmlUtterance
+          ttsLogger.debug("SSML parsing succeeded")
+        } else {
+          ttsLogger.notice("SSML parsing failed, falling back to plain text wrapper")
+          let escapedText = escapeXMLCharacters(trimmedText)
+          let wrappedSSML = wrapInSSML(escapedText)
+          utterance = AVSpeechUtterance(ssmlRepresentation: wrappedSSML)!
+        }
       } else {
-        ttsLogger.notice("SSML parsing failed, falling back to plain text wrapper")
+        ttsLogger.info("Text starts with XML tag but is not valid SSML, wrapping to prevent auto-detection")
         let escapedText = escapeXMLCharacters(trimmedText)
         let wrappedSSML = wrapInSSML(escapedText)
         utterance = AVSpeechUtterance(ssmlRepresentation: wrappedSSML)!
       }
     } else {
-      ttsLogger.info("Wrapping plain text in SSML to prevent auto-detection")
-      // wrap plain text in SSML to prevent AVSpeechUtterance from auto-detecting SSML
-      // which always tries to parse input text as SSML if it starts with an XML tag
-      let escapedText = escapeXMLCharacters(trimmedText)
-      let wrappedSSML = wrapInSSML(escapedText)
-      utterance = AVSpeechUtterance(ssmlRepresentation: wrappedSSML)!
+      ttsLogger.info("Processing as plain text")
+      utterance = AVSpeechUtterance(string: trimmedText)
     }
 
     let voiceIDToUse = resolveVoiceIdentifier(voiceIdentifier)
@@ -245,6 +251,14 @@ class TTSService {
         ttsLogger.notice("Voice '\(voiceID)' not found, using system default")
       }
     }
+
+    utterance.prefersAssistiveTechnologySettings = settingsManager.defaultTTSPrefersAssistiveTechnologySettings
+    utterance.rate = Float(settingsManager.defaultTTSRate)
+    utterance.pitchMultiplier = Float(settingsManager.defaultTTSPitch)
+    utterance.postUtteranceDelay = settingsManager.defaultTTSPause
+    ttsLogger.debug(
+      "Utterance parameters: rate=\(settingsManager.defaultTTSRate), pitch=\(settingsManager.defaultTTSPitch), pause=\(settingsManager.defaultTTSPause)s, assistive=\(settingsManager.defaultTTSPrefersAssistiveTechnologySettings)"
+    )
 
     if let setVoice = utterance.voice {
       ttsLogger.debug("Utterance voice identifier: \(setVoice.identifier)")

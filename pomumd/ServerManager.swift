@@ -29,7 +29,11 @@ class ServerManager: ObservableObject {
       port: Self.httpServerPort, metricsCollector: metricsCollector, registry: prometheusRegistry,
       settingsManager: settingsManager)
 
-    self.wyomingServer = WyomingServer(port: Self.wyomingServerPort, metricsCollector: metricsCollector)
+    self.wyomingServer = WyomingServer(
+      port: Self.wyomingServerPort,
+      metricsCollector: metricsCollector,
+      settingsManager: settingsManager
+    )
 
     // forward changes from nested ObservableObjects to trigger SwiftUI view updates
     wyomingServer.objectWillChange.sink { [weak self] _ in

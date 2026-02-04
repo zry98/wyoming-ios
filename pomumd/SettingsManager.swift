@@ -1,3 +1,4 @@
+import AVFoundation
 import Combine
 import Foundation
 
@@ -5,6 +6,11 @@ import Foundation
 class SettingsManager: ObservableObject {
   static let userDefaultsKeyDefaultTTSVoice = "defaultTTSVoice"
   static let userDefaultsKeyDefaultSTTLanguage = "defaultSTTLanguage"
+  static let userDefaultsKeyDefaultTTSRate = "defaultTTSRate"
+  static let userDefaultsKeyDefaultTTSPitch = "defaultTTSPitch"
+  static let userDefaultsKeyDefaultTTSPause = "defaultTTSPause"
+  static let userDefaultsKeyDefaultTTSPrefersAssistiveTechnologySettings =
+    "defaultTTSPrefersAssistiveTechnologySettings"
 
   @Published var defaultTTSVoice: String {
     didSet {
@@ -18,9 +24,51 @@ class SettingsManager: ObservableObject {
     }
   }
 
+  @Published var defaultTTSRate: Double {
+    didSet {
+      UserDefaults.standard.set(defaultTTSRate, forKey: Self.userDefaultsKeyDefaultTTSRate)
+    }
+  }
+
+  @Published var defaultTTSPitch: Double {
+    didSet {
+      UserDefaults.standard.set(defaultTTSPitch, forKey: Self.userDefaultsKeyDefaultTTSPitch)
+    }
+  }
+
+  @Published var defaultTTSPause: Double {
+    didSet {
+      UserDefaults.standard.set(defaultTTSPause, forKey: Self.userDefaultsKeyDefaultTTSPause)
+    }
+  }
+
+  @Published var defaultTTSPrefersAssistiveTechnologySettings: Bool {
+    didSet {
+      UserDefaults.standard.set(
+        defaultTTSPrefersAssistiveTechnologySettings,
+        forKey: Self.userDefaultsKeyDefaultTTSPrefersAssistiveTechnologySettings)
+    }
+  }
+
   init() {
+    let rate = UserDefaults.standard.double(forKey: Self.userDefaultsKeyDefaultTTSRate)
+    let pitch = UserDefaults.standard.double(forKey: Self.userDefaultsKeyDefaultTTSPitch)
+    let pause = UserDefaults.standard.double(forKey: Self.userDefaultsKeyDefaultTTSPause)
+
     self.defaultTTSVoice = UserDefaults.standard.string(forKey: Self.userDefaultsKeyDefaultTTSVoice) ?? ""
     self.defaultSTTLanguage = UserDefaults.standard.string(forKey: Self.userDefaultsKeyDefaultSTTLanguage) ?? ""
+    self.defaultTTSRate = rate == 0.0 ? Double(AVSpeechUtteranceDefaultSpeechRate) : rate
+    self.defaultTTSPitch = pitch == 0.0 ? 1.0 : pitch
+    self.defaultTTSPause = pause == 0.0 ? 0.3 : pause
+    self.defaultTTSPrefersAssistiveTechnologySettings = UserDefaults.standard.bool(
+      forKey: Self.userDefaultsKeyDefaultTTSPrefersAssistiveTechnologySettings)
+  }
+
+  func resetTTSSettings() {
+    self.defaultTTSRate = Double(AVSpeechUtteranceDefaultSpeechRate)
+    self.defaultTTSPitch = 1.0
+    self.defaultTTSPause = 0.3
+    self.defaultTTSPrefersAssistiveTechnologySettings = false
   }
 
   func validateTTSVoice(_ voiceID: String) throws {
@@ -52,12 +100,20 @@ class SettingsManager: ObservableObject {
   struct Settings: Codable {
     let defaultTTSVoice: String
     let defaultSTTLanguage: String
+    let defaultTTSRate: Double
+    let defaultTTSPitch: Double
+    let defaultTTSPause: Double
+    let defaultTTSPrefersAssistiveTechnologySettings: Bool
   }
 
   func toSettings() -> Settings {
     return Settings(
       defaultTTSVoice: defaultTTSVoice,
-      defaultSTTLanguage: defaultSTTLanguage
+      defaultSTTLanguage: defaultSTTLanguage,
+      defaultTTSRate: defaultTTSRate,
+      defaultTTSPitch: defaultTTSPitch,
+      defaultTTSPause: defaultTTSPause,
+      defaultTTSPrefersAssistiveTechnologySettings: defaultTTSPrefersAssistiveTechnologySettings
     )
   }
 
@@ -67,11 +123,19 @@ class SettingsManager: ObservableObject {
 
     self.defaultTTSVoice = settings.defaultTTSVoice
     self.defaultSTTLanguage = settings.defaultSTTLanguage
+    self.defaultTTSRate = settings.defaultTTSRate
+    self.defaultTTSPitch = settings.defaultTTSPitch
+    self.defaultTTSPause = settings.defaultTTSPause
+    self.defaultTTSPrefersAssistiveTechnologySettings = settings.defaultTTSPrefersAssistiveTechnologySettings
   }
 
   func updatePartial(
     defaultTTSVoice: String? = nil,
-    defaultSTTLanguage: String? = nil
+    defaultSTTLanguage: String? = nil,
+    defaultTTSRate: Double? = nil,
+    defaultTTSPitch: Double? = nil,
+    defaultTTSPause: Double? = nil,
+    defaultTTSPrefersAssistiveTechnologySettings: Bool? = nil
   ) throws {
     let newTTSVoice = defaultTTSVoice ?? self.defaultTTSVoice
     let newSTTLang = defaultSTTLanguage ?? self.defaultSTTLanguage
@@ -81,6 +145,12 @@ class SettingsManager: ObservableObject {
 
     if let voice = defaultTTSVoice { self.defaultTTSVoice = voice }
     if let lang = defaultSTTLanguage { self.defaultSTTLanguage = lang }
+    if let rate = defaultTTSRate { self.defaultTTSRate = rate }
+    if let pitch = defaultTTSPitch { self.defaultTTSPitch = pitch }
+    if let pause = defaultTTSPause { self.defaultTTSPause = pause }
+    if let prefersAssistive = defaultTTSPrefersAssistiveTechnologySettings {
+      self.defaultTTSPrefersAssistiveTechnologySettings = prefersAssistive
+    }
   }
 }
 

@@ -13,12 +13,14 @@ class WyomingServer: ObservableObject {
   @Published var isRunning: Bool = false
   let port: UInt16
   private let metricsCollector: MetricsCollector
+  private let settingsManager: SettingsManager
   private var listener: NWListener?
   private var connections: [ConnectionHandler] = []
 
-  init(port: UInt16 = 10200, metricsCollector: MetricsCollector) {
+  init(port: UInt16 = 10200, metricsCollector: MetricsCollector, settingsManager: SettingsManager) {
     self.port = port
     self.metricsCollector = metricsCollector
+    self.settingsManager = settingsManager
   }
 
   func start() throws {
@@ -72,7 +74,8 @@ class WyomingServer: ObservableObject {
   private func handleConnection(_ connection: NWConnection) {
     let handler = ConnectionHandler(
       connection: connection,
-      metricsCollector: metricsCollector
+      metricsCollector: metricsCollector,
+      settingsManager: settingsManager
     )
 
     handler.onClose = { [weak self] in
@@ -91,7 +94,8 @@ class ConnectionHandler {
   private let connection: NWConnection
   private let wyomingProtocol: WyomingProtocol
   private let metricsCollector: MetricsCollector
-  private lazy var ttsService: TTSService = TTSService(metricsCollector: metricsCollector)
+  private let settingsManager: SettingsManager
+  private lazy var ttsService: TTSService = TTSService(metricsCollector: metricsCollector, settingsManager: settingsManager)
   private lazy var sttService: STTService = STTService(metricsCollector: metricsCollector)
 
   private var receiveBuffer = Data()
@@ -188,9 +192,10 @@ class ConnectionHandler {
     return true
   }
 
-  init(connection: NWConnection, metricsCollector: MetricsCollector) {
+  init(connection: NWConnection, metricsCollector: MetricsCollector, settingsManager: SettingsManager) {
     self.connection = connection
     self.metricsCollector = metricsCollector
+    self.settingsManager = settingsManager
     self.wyomingProtocol = WyomingProtocol()
 
     Task {
@@ -460,10 +465,9 @@ class ConnectionHandler {
             }
           )
 
-          // add natural pause between sentences (300ms)
-          // TODO: tunable
-          if let format = currentAudioFormat {
-            let silence = ttsService.generateSilence(duration: 0.3, format: format)
+          // add natural pause between sentences (configurable via settings)
+          if let format = currentAudioFormat, settingsManager.defaultTTSPause > 0 {
+            let silence = ttsService.generateSilence(duration: settingsManager.defaultTTSPause, format: format)
             sendAudioChunk(silence, format: format)
           }
         } catch {
