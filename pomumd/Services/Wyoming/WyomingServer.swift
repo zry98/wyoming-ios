@@ -95,7 +95,8 @@ class ConnectionHandler {
   private let wyomingProtocol: WyomingProtocol
   private let metricsCollector: MetricsCollector
   private let settingsManager: SettingsManager
-  private lazy var ttsService: TTSService = TTSService(metricsCollector: metricsCollector, settingsManager: settingsManager)
+  private lazy var ttsService: TTSService = TTSService(
+    metricsCollector: metricsCollector, settingsManager: settingsManager)
   private lazy var sttService: STTService = STTService(metricsCollector: metricsCollector)
 
   private var receiveBuffer = Data()
@@ -421,7 +422,6 @@ class ConnectionHandler {
         wyomingServerLogger.info("No first-level child nodes found in SSML: '\(ssmlPortion)'")
         return
       }
-
       wyomingServerLogger.debug("Extracted \(chunks.count) SSML chunks")
 
       for (index, chunk) in chunks.enumerated() {
@@ -443,14 +443,12 @@ class ConnectionHandler {
       }
 
       synthesizeTextBuffer = remainingText
-
       if !synthesizeTextBuffer.isEmpty && !looksLikeSSML(synthesizeTextBuffer) {
         isSSMLMode = false
         wyomingServerLogger.notice("Remaining text after SSML is plain text, switching to plain text mode")
       } else if !synthesizeTextBuffer.isEmpty {
         wyomingServerLogger.debug("Remaining text after SSML looks like SSML, staying in SSML mode")
       }
-
     } else {
       while let (sentence, remaining) = ttsService.extractCompleteSentence(from: synthesizeTextBuffer) {
         wyomingServerLogger.info("Synthesizing sentence: '\(sentence)'")
@@ -465,7 +463,7 @@ class ConnectionHandler {
             }
           )
 
-          // add natural pause between sentences (configurable via settings)
+          // add pause between sentences
           if let format = currentAudioFormat, settingsManager.defaultTTSPause > 0 {
             let silence = ttsService.generateSilence(duration: settingsManager.defaultTTSPause, format: format)
             sendAudioChunk(silence, format: format)

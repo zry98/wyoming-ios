@@ -80,10 +80,10 @@ class STTService {
     let languageToUse = resolveLanguage(language)
 
     // use different API based on platform version
-    // iOS/iPadOS/macOS/visionOS 26.0+: SpeechAnalyzer
+    // iOS/iPadOS/macOS 26.0+: SpeechAnalyzer
     // Fallback: legacy SFSpeechRecognizer
     let result: String
-    if #available(iOS 26.0, macOS 26.0, visionOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
       sttLogger.debug("Using SpeechAnalyzer API")
       result = try await transcribeWithSpeechAnalyzer(
         audioData: audioData, sampleRate: sampleRate, channels: channels, language: languageToUse,
@@ -106,7 +106,7 @@ class STTService {
     return result
   }
 
-  @available(iOS 26.0, macOS 26.0, visionOS 26.0, *)
+  @available(iOS 26.0, macOS 26.0, *)
   private func transcribeWithSpeechAnalyzer(
     audioData: Data,
     sampleRate: Int,
