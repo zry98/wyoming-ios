@@ -249,6 +249,17 @@ private struct AudioData: Codable {
   let width: Int
   let channels: Int
   let timestamp: Int?
+
+  init(format: AudioFormat, timestamp: Int?) {
+    self.rate = format.rate
+    self.width = format.width
+    self.channels = format.channels
+    self.timestamp = timestamp
+  }
+
+  func toAudioFormat() -> AudioFormat {
+    return AudioFormat(rate: rate, width: width, channels: channels)
+  }
 }
 
 struct AudioChunkEvent: WyomingEvent {
@@ -259,12 +270,7 @@ struct AudioChunkEvent: WyomingEvent {
 
   func toMessage() -> WyomingMessage {
     do {
-      let audioData = AudioData(
-        rate: format.rate,
-        width: format.width,
-        channels: format.channels,
-        timestamp: timestamp
-      )
+      let audioData = AudioData(format: format, timestamp: timestamp)
       let dataBytes = try jsonEncoder.encode(audioData)
       return WyomingMessage(type: Self.eventType, dataBytes: dataBytes, payload: audio)
     } catch {
@@ -282,7 +288,7 @@ struct AudioChunkEvent: WyomingEvent {
     }
 
     let audioData = try jsonDecoder.decode(AudioData.self, from: dataBytes)
-    let format = AudioFormat(rate: audioData.rate, width: audioData.width, channels: audioData.channels)
+    let format = audioData.toAudioFormat()
     let audio = message.payload ?? Data()
 
     return AudioChunkEvent(format: format, audio: audio, timestamp: audioData.timestamp)
@@ -296,12 +302,7 @@ struct AudioStartEvent: WyomingEvent {
 
   func toMessage() -> WyomingMessage {
     do {
-      let audioData = AudioData(
-        rate: format.rate,
-        width: format.width,
-        channels: format.channels,
-        timestamp: timestamp
-      )
+      let audioData = AudioData(format: format, timestamp: timestamp)
       let dataBytes = try jsonEncoder.encode(audioData)
       return WyomingMessage(type: Self.eventType, dataBytes: dataBytes)
     } catch {
@@ -319,7 +320,7 @@ struct AudioStartEvent: WyomingEvent {
     }
 
     let audioData = try jsonDecoder.decode(AudioData.self, from: dataBytes)
-    let format = AudioFormat(rate: audioData.rate, width: audioData.width, channels: audioData.channels)
+    let format = audioData.toAudioFormat()
 
     return AudioStartEvent(format: format, timestamp: audioData.timestamp)
   }
