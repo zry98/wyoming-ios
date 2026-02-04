@@ -2,45 +2,54 @@ import AVFoundation
 import SwiftUI
 
 struct TTSVoicesListView: View {
-  @Binding var defaultTTSVoice: String
+  @ObservedObject var settingsManager: SettingsManager
   @State private var voices: [Voice] = []
   @State private var sortedVoices: [Voice] = []
   private let previewSynthesizer = AVSpeechSynthesizer()
 
   var body: some View {
-    List {
-      ForEach(sortedVoices, id: \.self.id) { voice in
-        HStack {
-          VStack(alignment: .leading, spacing: 4) {
-            Text("\(Locale.current.localizedString(forIdentifier: voice.language) ?? voice.language) • \(voice.name)")
-            Text(voice.id)
-              .font(.caption)
-              .foregroundColor(.secondary)
-          }
+    Section("Tap a voice to preview and set it as default") {
+      List {
+        ForEach(sortedVoices, id: \.self.id) { voice in
+          HStack {
+            VStack(alignment: .leading, spacing: 4) {
+              let targetLocale = Locale(identifier: voice.language)
+              let languageName = targetLocale.localizedString(forIdentifier: voice.language) ?? voice.language
+              Text("\(languageName) • \(voice.name)")
+              Text(voice.id)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            }
 
-          Spacer()
+            Spacer()
 
-          if defaultTTSVoice == voice.id {
-            Image(systemName: "checkmark")
-              .foregroundColor(.blue)
+            if settingsManager.defaultTTSVoice == voice.id {
+              Image(systemName: "checkmark")
+                .foregroundColor(.blue)
+            }
           }
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .onTapGesture {
-          playVoiceSample(voice)
-          defaultTTSVoice = voice.id
+          .padding(.vertical, 4)
+          .contentShape(Rectangle())
+          .onTapGesture {
+            if settingsManager.defaultTTSVoice == voice.id {
+              settingsManager.defaultTTSVoice = ""
+            } else {
+              settingsManager.defaultTTSVoice = voice.id
+            }
+
+            playVoiceSample(voice)
+          }
         }
       }
-    }
-    .navigationTitle("TTS Voices")
-    .inlineNavigationBarTitle()
-    .onAppear {
-      voices = TTSService.getAvailableVoices()
-      updateSortedVoices()
-    }
-    .onChange(of: voices) { _ in
-      updateSortedVoices()
+      .navigationTitle("TTS Voices")
+      .inlineNavigationBarTitle()
+      .onAppear {
+        voices = TTSService.getAvailableVoices()
+        updateSortedVoices()
+      }
+      .onChange(of: voices) { _ in
+        updateSortedVoices()
+      }
     }
   }
 
@@ -59,7 +68,10 @@ struct TTSVoicesListView: View {
       previewSynthesizer.stopSpeaking(at: .immediate)
     }
 
-    let utterance = AVSpeechUtterance(string: "Hello world")
+    let targetLocale = Locale(identifier: voice.language)
+    let languageName = targetLocale.localizedString(forIdentifier: voice.language) ?? voice.language
+
+    let utterance = AVSpeechUtterance(string: languageName)
     if let avVoice = AVSpeechSynthesisVoice(identifier: voice.id) {
       utterance.voice = avVoice
     }

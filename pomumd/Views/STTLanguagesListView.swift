@@ -1,43 +1,49 @@
 import SwiftUI
 
 struct STTLanguagesListView: View {
-  @Binding var defaultLanguage: String
+  @ObservedObject var settingsManager: SettingsManager
   @State private var languages: [String] = []
   @State private var sortedLanguages: [String] = []
 
   var body: some View {
-    List {
-      ForEach(sortedLanguages, id: \.self) { language in
-        HStack {
-          VStack(alignment: .leading, spacing: 4) {
-            Text(Locale.current.localizedString(forIdentifier: language) ?? language)
-            Text(language)
-              .font(.caption)
-              .foregroundColor(.secondary)
-          }
+    Section("Tap a language to set it as default") {
+      List {
+        ForEach(sortedLanguages, id: \.self) { language in
+          HStack {
+            VStack(alignment: .leading, spacing: 4) {
+              Text(Locale.current.localizedString(forIdentifier: language) ?? language)
+              Text(language)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            }
 
-          Spacer()
+            Spacer()
 
-          if defaultLanguage == language {
-            Image(systemName: "checkmark")
-              .foregroundColor(.blue)
+            if settingsManager.defaultSTTLanguage == language {
+              Image(systemName: "checkmark")
+                .foregroundColor(.blue)
+            }
           }
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .onTapGesture {
-          defaultLanguage = language
+          .padding(.vertical, 4)
+          .contentShape(Rectangle())
+          .onTapGesture {
+            if settingsManager.defaultSTTLanguage == language {
+              settingsManager.defaultSTTLanguage = ""
+            } else {
+              settingsManager.defaultSTTLanguage = language
+            }
+          }
         }
       }
-    }
-    .navigationTitle("STT Languages")
-    .inlineNavigationBarTitle()
-    .onAppear {
-      languages = STTService.getLanguages()
-      updateSortedLanguages()
-    }
-    .onChange(of: languages) { _ in
-      updateSortedLanguages()
+      .navigationTitle("STT Languages")
+      .inlineNavigationBarTitle()
+      .onAppear {
+        languages = STTService.getLanguages()
+        updateSortedLanguages()
+      }
+      .onChange(of: languages) { _ in
+        updateSortedLanguages()
+      }
     }
   }
 

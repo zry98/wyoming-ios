@@ -35,11 +35,7 @@ struct ContentView: View {
 
           Section("Text-to-Speech Settings") {
             NavigationLink(
-              destination: TTSVoicesListView(
-                defaultTTSVoice: Binding(
-                  get: { settingsManager.defaultTTSVoice },
-                  set: { settingsManager.defaultTTSVoice = $0 }
-                ))
+              destination: TTSVoicesListView(settingsManager: settingsManager)
             ) {
               Text("Voices")
             }
@@ -47,11 +43,7 @@ struct ContentView: View {
 
           Section("Speech-to-Text Settings") {
             NavigationLink(
-              destination: STTLanguagesListView(
-                defaultLanguage: Binding(
-                  get: { settingsManager.defaultSTTLanguage },
-                  set: { settingsManager.defaultSTTLanguage = $0 }
-                ))
+              destination: STTLanguagesListView(settingsManager: settingsManager)
             ) {
               Text("Languages")
             }
