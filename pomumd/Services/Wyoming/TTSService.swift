@@ -137,17 +137,32 @@ class TTSService {
   }
 
   private func escapeXMLCharacters(_ text: String) -> String {
-    return
-      text
-      .replacingOccurrences(of: "&", with: "&amp;")
-      .replacingOccurrences(of: "<", with: "&lt;")
-      .replacingOccurrences(of: ">", with: "&gt;")
-      .replacingOccurrences(of: "\"", with: "&quot;")
-      .replacingOccurrences(of: "'", with: "&apos;")
+    var res = text
+    res = res.replacingOccurrences(of: "&", with: "&amp;")
+    res = res.replacingOccurrences(of: "<", with: "&lt;")
+    res = res.replacingOccurrences(of: ">", with: "&gt;")
+    res = res.replacingOccurrences(of: "\"", with: "&quot;")
+    res = res.replacingOccurrences(of: "'", with: "&apos;")
+    return res
   }
 
   private func wrapInSSML(_ text: String) -> String {
     return "<?xml version=\"1.0\"?>\n<speak>\(text)</speak>"
+  }
+
+  private func sanitizeSSML(_ ssml: String) -> String {
+    var res = ssml
+    #if os(macOS)
+      if #available(macOS 26.0, *) {
+      } else {
+        res = res.replacingOccurrences(of: "<p>", with: "", options: .caseInsensitive)
+        res = res.replacingOccurrences(of: "</p>", with: " ", options: .caseInsensitive)
+        res = res.replacingOccurrences(of: "<s>", with: "", options: .caseInsensitive)
+        res = res.replacingOccurrences(of: "</s>", with: " ", options: .caseInsensitive)
+        ttsLogger.debug("Stripped SSML <p> and <s> tags for macOS < 26 bug")
+      }
+    #endif
+    return res
   }
 
   private class SSMLValidationDelegate: NSObject, XMLParserDelegate {
@@ -193,6 +208,7 @@ class TTSService {
     }
 
     let utterance: AVSpeechUtterance
+
     if isValidSSML(trimmedText) {
       ttsLogger.info("Attempting SSML synthesis on valid input")
 
@@ -200,6 +216,7 @@ class TTSService {
       if trimmedText.lowercased().hasPrefix("<speak") {
         ssmlText = "<?xml version=\"1.0\"?>\n" + trimmedText
       }
+      ssmlText = sanitizeSSML(ssmlText)
 
       if let ssmlUtterance = AVSpeechUtterance(ssmlRepresentation: ssmlText) {
         utterance = ssmlUtterance
