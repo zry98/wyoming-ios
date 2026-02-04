@@ -3,7 +3,6 @@ import Foundation
 import Speech
 
 class STTService {
-  private static let appleAttribution = Attribution(name: "Apple", url: "https://www.apple.com")
   private static let programName: String = {
     let appName =
       (Bundle.main.infoDictionary?["CFBundleName"] as? String
@@ -48,7 +47,7 @@ class STTService {
     let asrModel = ASRModel(
       name: Self.programName,
       languages: languages,
-      attribution: Self.appleAttribution,
+      attribution: Attribution.apple,
       installed: true,
       description: "Wyoming Speech-to-Text using iOS SFSpeechRecognizer",
       version: nil
@@ -58,7 +57,7 @@ class STTService {
       name: Self.programName,
       description: "Wyoming Speech-to-Text using iOS SFSpeechRecognizer",
       installed: true,
-      attribution: Self.appleAttribution,
+      attribution: Attribution.apple,
       models: [asrModel],
       supportsTranscriptStreaming: true
     )

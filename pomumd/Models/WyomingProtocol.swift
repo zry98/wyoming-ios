@@ -467,6 +467,8 @@ struct DescribeEvent: WyomingEvent {
 struct Attribution: Codable {
   let name: String
   let url: String
+
+  static let apple = Attribution(name: "Apple", url: "https://www.apple.com")
 }
 
 struct ASRModel: Codable {

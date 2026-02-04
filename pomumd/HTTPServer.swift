@@ -11,7 +11,6 @@ class HTTPServer: ObservableObject {
   private let metricsCollector: MetricsCollector
   private let prometheusRegistry: PrometheusCollectorRegistry
   private let settingsManager: SettingsManager
-  private var startTime: Date
   private let jsonEncoder = JSONEncoder()
   private let jsonDecoder = JSONDecoder()
 
@@ -25,7 +24,6 @@ class HTTPServer: ObservableObject {
     self.metricsCollector = metricsCollector
     self.prometheusRegistry = registry
     self.settingsManager = settingsManager
-    self.startTime = Date()
   }
 
   func start() throws {
@@ -49,8 +47,6 @@ class HTTPServer: ObservableObject {
       httpServerLogger.error("Failed to start HTTP server: \(error)")
       throw error
     }
-
-    self.startTime = Date()
   }
 
   func stop() {

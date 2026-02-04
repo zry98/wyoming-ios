@@ -3,7 +3,6 @@ import Foundation
 import NaturalLanguage
 
 class TTSService {
-  private static let appleAttribution = Attribution(name: "Apple", url: "https://www.apple.com")
   private static let programName: String = {
     let appName =
       (Bundle.main.infoDictionary?["CFBundleName"] as? String
@@ -42,7 +41,7 @@ class TTSService {
       TTSVoice(
         name: voice.id,
         languages: [voice.language],
-        attribution: Self.appleAttribution,
+        attribution: Attribution.apple,
         installed: true,
         description: voice.id,
         version: nil
@@ -53,7 +52,7 @@ class TTSService {
       name: Self.programName,
       description: "Wyoming Text-to-Speech using iOS AVSpeechSynthesizer",
       installed: true,
-      attribution: Self.appleAttribution,
+      attribution: Attribution.apple,
       voices: ttsVoices,
       supportsSynthesizeStreaming: true
     )
