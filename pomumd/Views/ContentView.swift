@@ -7,18 +7,21 @@ struct ContentView: View {
   @State private var showAlert = false
   @State private var alertTitle = ""
   @State private var alertMessage = ""
-  @State private var showBlackScreen = false
-  @State private var savedBrightness: CGFloat = 1.0
+
+  #if os(iOS)
+    @State private var showBlackScreen = false
+    @State private var savedBrightness: CGFloat = 1.0
+
+    private var currentScreen: UIScreen? {
+      guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+        return nil
+      }
+      return windowScene.screen
+    }
+  #endif
 
   private var settingsManager: SettingsManager {
     serverManager.settingsManager
-  }
-
-  private var currentScreen: UIScreen? {
-    guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
-      return nil
-    }
-    return windowScene.screen
   }
 
   var body: some View {
@@ -109,17 +112,19 @@ struct ContentView: View {
         .navigationTitle("PomumD")
         .inlineNavigationBarTitle()
         .toolbar {
-          ToolbarItem(placement: .trailingBar) {
-            Button(action: {
-              if let screen = currentScreen {
-                savedBrightness = screen.brightness
-                screen.brightness = 0.0
-                showBlackScreen = true
+          #if os(iOS)
+            ToolbarItem(placement: .trailingBar) {
+              Button(action: {
+                if let screen = currentScreen {
+                  savedBrightness = screen.brightness
+                  screen.brightness = 0.0
+                  showBlackScreen = true
+                }
+              }) {
+                Image(systemName: "moon.fill")
               }
-            }) {
-              Image(systemName: "moon.fill")
             }
-          }
+          #endif
         }
         .alert(alertTitle, isPresented: $showAlert) {
           Button("OK", role: .cancel) {}
@@ -128,16 +133,18 @@ struct ContentView: View {
         }
       }
 
-      if showBlackScreen {
-        Color.black
-          .ignoresSafeArea()
-          .onTapGesture {
-            if let screen = currentScreen {
-              screen.brightness = savedBrightness
+      #if os(iOS)
+        if showBlackScreen {
+          Color.black
+            .ignoresSafeArea()
+            .onTapGesture {
+              if let screen = currentScreen {
+                screen.brightness = savedBrightness
+              }
+              showBlackScreen = false
             }
-            showBlackScreen = false
-          }
-      }
+        }
+      #endif
     }
   }
 
