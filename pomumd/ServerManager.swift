@@ -62,10 +62,11 @@ class ServerManager: ObservableObject {
       startServer(name: "Wyoming", port: Self.wyomingServerPort) { try wyomingServer.start() },
     ].compactMap { $0 }
 
-    errorMessage = errors.isEmpty ? nil : errors.joined(separator: "\n")
     if errors.isEmpty {
-      bonjourService.publish()
+      bonjourService.publish()  // publish zeroconf only after Wyoming server is successfully started
     }
+
+    errorMessage = errors.isEmpty ? nil : errors.joined(separator: "\n")
   }
 
   private func startServer(name: String, port: UInt16, start: () throws -> Void) -> String? {

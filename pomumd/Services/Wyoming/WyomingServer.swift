@@ -247,10 +247,10 @@ class ConnectionHandler {
 
       if let data = data, !data.isEmpty {
         self.receiveBuffer.append(data)
-        networkLogger.debug("len(buffer)=\(self.receiveBuffer.count)")
-
+        #if DEBUG
+          networkLogger.debug("len(buffer)=\(self.receiveBuffer.count)")
+        #endif
         self.metricsCollector.recordNetworkTraffic(bytesIn: UInt64(data.count), bytesOut: 0)
-
         self.processBuffer()
       }
 
