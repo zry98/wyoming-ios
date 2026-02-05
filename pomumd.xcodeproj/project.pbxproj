@@ -7,9 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		403FEFA02F3289DF002440FE /* Metrics in Frameworks */ = {isa = PBXBuildFile; productRef = 403FEF9F2F3289DF002440FE /* Metrics */; };
-		403FEFA32F3289E6002440FE /* Prometheus in Frameworks */ = {isa = PBXBuildFile; productRef = 403FEFA22F3289E6002440FE /* Prometheus */; };
-		403FEFA62F3289EC002440FE /* Telegraph in Frameworks */ = {isa = PBXBuildFile; productRef = 403FEFA52F3289EC002440FE /* Telegraph */; };
+		40B63E3D2F34364F00E79A1C /* Telegraph in Frameworks */ = {isa = PBXBuildFile; productRef = 40B63E3C2F34364F00E79A1C /* Telegraph */; };
+		40B63E402F34365700E79A1C /* Metrics in Frameworks */ = {isa = PBXBuildFile; productRef = 40B63E3F2F34365700E79A1C /* Metrics */; };
+		40B63E432F34365C00E79A1C /* Prometheus in Frameworks */ = {isa = PBXBuildFile; productRef = 40B63E422F34365C00E79A1C /* Prometheus */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,9 +29,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				403FEFA62F3289EC002440FE /* Telegraph in Frameworks */,
-				403FEFA32F3289E6002440FE /* Prometheus in Frameworks */,
-				403FEFA02F3289DF002440FE /* Metrics in Frameworks */,
+				40B63E402F34365700E79A1C /* Metrics in Frameworks */,
+				40B63E432F34365C00E79A1C /* Prometheus in Frameworks */,
+				40B63E3D2F34364F00E79A1C /* Telegraph in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -74,9 +74,9 @@
 			);
 			name = pomumd;
 			packageProductDependencies = (
-				403FEF9F2F3289DF002440FE /* Metrics */,
-				403FEFA22F3289E6002440FE /* Prometheus */,
-				403FEFA52F3289EC002440FE /* Telegraph */,
+				40B63E3C2F34364F00E79A1C /* Telegraph */,
+				40B63E3F2F34365700E79A1C /* Metrics */,
+				40B63E422F34365C00E79A1C /* Prometheus */,
 			);
 			productName = pomumd;
 			productReference = 403FEF392F3286A3002440FE /* pomumd.app */;
@@ -107,9 +107,9 @@
 			mainGroup = 403FEF302F3286A3002440FE;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				403FEF9E2F3289DF002440FE /* XCRemoteSwiftPackageReference "swift-metrics" */,
-				403FEFA12F3289E6002440FE /* XCRemoteSwiftPackageReference "swift-prometheus" */,
-				403FEFA42F3289EC002440FE /* XCRemoteSwiftPackageReference "Telegraph" */,
+				40B63E3B2F34364F00E79A1C /* XCRemoteSwiftPackageReference "Telegraph" */,
+				40B63E3E2F34365700E79A1C /* XCRemoteSwiftPackageReference "swift-metrics" */,
+				40B63E412F34365C00E79A1C /* XCRemoteSwiftPackageReference "swift-prometheus" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 403FEF3A2F3286A3002440FE /* Products */;
@@ -398,23 +398,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		403FEF9E2F3289DF002440FE /* XCRemoteSwiftPackageReference "swift-metrics" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/apple/swift-metrics.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.7.1;
-			};
-		};
-		403FEFA12F3289E6002440FE /* XCRemoteSwiftPackageReference "swift-prometheus" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/swift-server/swift-prometheus.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.2.0;
-			};
-		};
-		403FEFA42F3289EC002440FE /* XCRemoteSwiftPackageReference "Telegraph" */ = {
+		40B63E3B2F34364F00E79A1C /* XCRemoteSwiftPackageReference "Telegraph" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/Building42/Telegraph.git";
 			requirement = {
@@ -422,23 +406,39 @@
 				minimumVersion = 0.40.0;
 			};
 		};
+		40B63E3E2F34365700E79A1C /* XCRemoteSwiftPackageReference "swift-metrics" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-metrics.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.7.1;
+			};
+		};
+		40B63E412F34365C00E79A1C /* XCRemoteSwiftPackageReference "swift-prometheus" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/swift-server/swift-prometheus.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.2.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		403FEF9F2F3289DF002440FE /* Metrics */ = {
+		40B63E3C2F34364F00E79A1C /* Telegraph */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 403FEF9E2F3289DF002440FE /* XCRemoteSwiftPackageReference "swift-metrics" */;
+			package = 40B63E3B2F34364F00E79A1C /* XCRemoteSwiftPackageReference "Telegraph" */;
+			productName = Telegraph;
+		};
+		40B63E3F2F34365700E79A1C /* Metrics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 40B63E3E2F34365700E79A1C /* XCRemoteSwiftPackageReference "swift-metrics" */;
 			productName = Metrics;
 		};
-		403FEFA22F3289E6002440FE /* Prometheus */ = {
+		40B63E422F34365C00E79A1C /* Prometheus */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 403FEFA12F3289E6002440FE /* XCRemoteSwiftPackageReference "swift-prometheus" */;
+			package = 40B63E412F34365C00E79A1C /* XCRemoteSwiftPackageReference "swift-prometheus" */;
 			productName = Prometheus;
-		};
-		403FEFA52F3289EC002440FE /* Telegraph */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 403FEFA42F3289EC002440FE /* XCRemoteSwiftPackageReference "Telegraph" */;
-			productName = Telegraph;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

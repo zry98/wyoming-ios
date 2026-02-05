@@ -22,7 +22,7 @@ struct TTSVoicesListView: View {
               .foregroundColor(.secondary)
             Slider(
               value: $settingsManager.defaultTTSRate,
-              in: Double(AVSpeechUtteranceMinimumSpeechRate)...Double(AVSpeechUtteranceMaximumSpeechRate), step: 0.05)
+              in: Float(AVSpeechUtteranceMinimumSpeechRate)...Float(AVSpeechUtteranceMaximumSpeechRate), step: 0.05)
             Image(systemName: "hare")
               .foregroundColor(.secondary)
           }
@@ -60,10 +60,11 @@ struct TTSVoicesListView: View {
         .opacity(settingsManager.defaultTTSPrefersAssistiveTechnologySettings ? 0.5 : 1.0)
 
         Toggle(
-          "Prefer Assistive Technology Settings", isOn: $settingsManager.defaultTTSPrefersAssistiveTechnologySettings)
+          "Prefer Assistive Technology Settings",
+          isOn: $settingsManager.defaultTTSPrefersAssistiveTechnologySettings)
 
         Button(action: {
-          settingsManager.resetTTSSettings()
+          settingsManager.resetTTSVoiceSettings()
         }) {
           HStack {
             Spacer()
@@ -145,7 +146,7 @@ struct TTSVoicesListView: View {
     utterance.prefersAssistiveTechnologySettings = settingsManager.defaultTTSPrefersAssistiveTechnologySettings
     utterance.rate = Float(settingsManager.defaultTTSRate)
     utterance.pitchMultiplier = Float(settingsManager.defaultTTSPitch)
-    utterance.postUtteranceDelay = settingsManager.defaultTTSPause
+    utterance.postUtteranceDelay = TimeInterval(settingsManager.defaultTTSPause)
 
     previewSynthesizer.speak(utterance)
   }

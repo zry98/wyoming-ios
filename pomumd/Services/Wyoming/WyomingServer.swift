@@ -12,6 +12,7 @@ enum ServiceType {
 class WyomingServer: ObservableObject {
   @Published var isRunning: Bool = false
   let port: UInt16
+
   private let metricsCollector: MetricsCollector
   private let settingsManager: SettingsManager
   private var listener: NWListener?
@@ -104,9 +105,9 @@ class ConnectionHandler {
 
   private var audioBuffer = Data()
   private var transcribeLanguage: String?
-  private var audioSampleRate: Int = 16000
-  private var audioChannels: Int = 1
-  private var audioWidth: Int = 2
+  private var audioSampleRate: UInt32 = 16000
+  private var audioChannels: UInt32 = 1
+  private var audioWidth: UInt32 = 2
 
   // TTS streaming state
   private var isSynthesizingStreaming = false
@@ -465,7 +466,8 @@ class ConnectionHandler {
 
           // add pause between sentences
           if let format = currentAudioFormat, settingsManager.defaultTTSPause > 0 {
-            let silence = ttsService.generateSilence(duration: settingsManager.defaultTTSPause, format: format)
+            let silence = ttsService.generateSilence(
+              duration: TimeInterval(settingsManager.defaultTTSPause), format: format)
             sendAudioChunk(silence, format: format)
           }
         } catch {

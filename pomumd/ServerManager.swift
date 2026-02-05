@@ -7,19 +7,18 @@ import Speech
 class ServerManager: ObservableObject {
   let httpServer: HTTPServer
   let wyomingServer: WyomingServer
-  @Published var errorMessage: String?
-  @Published var hasRequestedPermissions = false
-
   static let httpServerPort: UInt16 = 10100
   static let wyomingServerPort: UInt16 = 10200
 
-  let settingsManager: SettingsManager
+  @Published var errorMessage: String?
+  @Published var hasRequestedPermissions = false
+  @Published var settingsManager: SettingsManager
   let prometheusRegistry: PrometheusCollectorRegistry
   let metricsCollector: MetricsCollector
   private var cancellables = Set<AnyCancellable>()
 
   init() {
-    self.settingsManager = SettingsManager()
+    let settingsManager = SettingsManager()
 
     let metricsConfig = MetricsService.bootstrap()
     self.prometheusRegistry = metricsConfig.prometheusRegistry
@@ -34,6 +33,8 @@ class ServerManager: ObservableObject {
       metricsCollector: metricsCollector,
       settingsManager: settingsManager
     )
+
+    self.settingsManager = settingsManager
 
     // forward changes from nested ObservableObjects to trigger SwiftUI view updates
     wyomingServer.objectWillChange.sink { [weak self] _ in

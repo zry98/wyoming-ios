@@ -255,7 +255,6 @@ class TTSService {
     utterance.prefersAssistiveTechnologySettings = settingsManager.defaultTTSPrefersAssistiveTechnologySettings
     utterance.rate = Float(settingsManager.defaultTTSRate)
     utterance.pitchMultiplier = Float(settingsManager.defaultTTSPitch)
-    utterance.postUtteranceDelay = settingsManager.defaultTTSPause
     ttsLogger.debug(
       "Utterance parameters: rate=\(settingsManager.defaultTTSRate), pitch=\(settingsManager.defaultTTSPitch), pause=\(settingsManager.defaultTTSPause)s, assistive=\(settingsManager.defaultTTSPrefersAssistiveTechnologySettings)"
     )
@@ -270,6 +269,12 @@ class TTSService {
     var bufferCount = 0
     var totalBytes = 0
     var audioFormat: AudioFormat?
+
+    let baseTimeout = settingsManager.defaultTTSSynthesisTimeout
+    let calculatedTimeout = Double(baseTimeout) + Double(trimmedText.count) * 0.05  // 0.05 seconds per character
+    ttsLogger.debug(
+      "Synthesis timeout: \(String(format: "%d", baseTimeout))+\(String(trimmedText.count))*0.05=\(String(format: "%.2f", calculatedTimeout))s"
+    )
 
     return try await withCheckedThrowingContinuation { continuation in
       var hasResumed = false
@@ -312,11 +317,11 @@ class TTSService {
           }
         })
 
-      // if no empty buffer is received, wait a bit and return what we have
-      DispatchQueue.global().asyncAfter(deadline: .now() + 5.0) {
+      // if no empty buffer is received, wait for calculated timeout and return what we have
+      DispatchQueue.global().asyncAfter(deadline: .now() + calculatedTimeout) {
         if !hasResumed {
           hasResumed = true
-          ttsLogger.notice("Synthesis timeout")
+          ttsLogger.notice("Synthesis timeout after \(String(format: "%.1f", calculatedTimeout))s")
           continuation.resume()
         }
       }
@@ -339,14 +344,14 @@ class TTSService {
 
   private func detectAudioFormat(from buffer: AVAudioPCMBuffer) -> AudioFormat {
     let format = buffer.format
-    let rate = Int(format.sampleRate)
-    let channels = Int(format.channelCount)
+    let rate = UInt32(format.sampleRate)
+    let channels = UInt32(format.channelCount)
 
-    let width: Int
+    let width: UInt32
     if format.commonFormat == .pcmFormatFloat32 {
       width = 2  // Float32 converted to Int16
     } else {
-      width = Int(format.streamDescription.pointee.mBytesPerFrame) / channels
+      width = format.streamDescription.pointee.mBytesPerFrame / channels
     }
 
     ttsLogger.info("Audio format: \(rate) Hz, \(width) bytes/sample, \(channels) channel(s)")
@@ -357,9 +362,9 @@ class TTSService {
     let sampleRate = format.rate
     let channels = format.channels
     let bytesPerSample = format.width
-    let frameCount = Int(Double(sampleRate) * duration)
+    let frameCount = sampleRate * UInt32(duration)
     let totalBytes = frameCount * channels * bytesPerSample
-    return Data(count: totalBytes)
+    return Data(count: Int(totalBytes))
   }
 
   func extractCompleteSentence(from text: String) -> (sentence: String, remaining: String)? {

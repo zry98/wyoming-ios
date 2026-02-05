@@ -67,8 +67,8 @@ class STTService {
 
   func transcribe(
     audioData: Data,
-    sampleRate: Int,
-    channels: Int,
+    sampleRate: UInt32,
+    channels: UInt32,
     language: String?,
     onPartialResult: ((String) -> Void)? = nil
   ) async throws -> String {
@@ -109,8 +109,8 @@ class STTService {
   @available(iOS 26.0, macOS 26.0, *)
   private func transcribeWithSpeechAnalyzer(
     audioData: Data,
-    sampleRate: Int,
-    channels: Int,
+    sampleRate: UInt32,
+    channels: UInt32,
     language: String?,
     onPartialResult: ((String) -> Void)?
   ) async throws -> String {
@@ -202,8 +202,8 @@ class STTService {
 
   private func transcribeWithSFSpeechRecognizer(
     audioData: Data,
-    sampleRate: Int,
-    channels: Int,
+    sampleRate: UInt32,
+    channels: UInt32,
     language: String?,
     onPartialResult: ((String) -> Void)?
   ) async throws -> String {

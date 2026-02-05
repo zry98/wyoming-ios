@@ -8,9 +8,11 @@ class HTTPServer: ObservableObject {
   @Published var isRunning: Bool = false
   private var server: Server?
   let port: UInt16
+
   private let metricsCollector: MetricsCollector
   private let prometheusRegistry: PrometheusCollectorRegistry
   private let settingsManager: SettingsManager
+
   private let jsonEncoder = JSONEncoder()
   private let jsonDecoder = JSONDecoder()
 
@@ -60,9 +62,7 @@ class HTTPServer: ObservableObject {
     // GET /health: Health check endpoint
     server?.route(.GET, "/health") { [weak self] req in
       guard let self = self else {
-        let resp = HTTPResponse()
-        resp.status = .internalServerError
-        return resp
+        return self?.serverUnavailableResponse() ?? HTTPResponse()
       }
 
       let resp = HTTPResponse()
@@ -77,9 +77,7 @@ class HTTPServer: ObservableObject {
     // GET /metrics: Prometheus metrics endpoint
     server?.route(.GET, "/metrics") { [weak self] req in
       guard let self = self else {
-        let resp = HTTPResponse()
-        resp.status = .internalServerError
-        return resp
+        return self?.serverUnavailableResponse() ?? HTTPResponse()
       }
 
       let sema = DispatchSemaphore(value: 0)
@@ -105,17 +103,17 @@ class HTTPServer: ObservableObject {
     // GET /api/wyoming/settings: Return Wyoming settings
     server?.route(.GET, "/api/wyoming/settings") { [weak self] req in
       guard let self = self else {
-        return self?.jsonResponse(error: "Server unavailable", status: .internalServerError) ?? HTTPResponse()
+        return self?.serverUnavailableResponse() ?? HTTPResponse()
       }
 
       let settings = self.settingsManager.toSettings()
       return self.jsonResponse(settings)
     }
 
-    // PUT /api/wyoming/settings: Update Wyoming settings (full replacement)
-    server?.route(.PUT, "/api/wyoming/settings") { [weak self] req in
+    // POST /api/wyoming/settings: Update Wyoming settings
+    server?.route(.POST, "/api/wyoming/settings") { [weak self] req in
       guard let self = self else {
-        return self?.jsonResponse(error: "Server unavailable", status: .internalServerError) ?? HTTPResponse()
+        return self?.serverUnavailableResponse() ?? HTTPResponse()
       }
       guard !req.body.isEmpty else {
         return self.jsonResponse(error: "Request body is required", status: .badRequest)
@@ -132,39 +130,6 @@ class HTTPServer: ObservableObject {
       } catch let error as SettingsError {
         return self.jsonResponse(error: error.localizedDescription, status: .badRequest)
       } catch {
-        return self.jsonResponse(error: "Invalid request body: \(error.localizedDescription)", status: .badRequest)
-      }
-    }
-
-    // PATCH /api/wyoming/settings: Partial update Wyoming settings
-    server?.route(.PATCH, "/api/wyoming/settings") { [weak self] req in
-      guard let self = self else {
-        return self?.jsonResponse(error: "Server unavailable", status: .internalServerError) ?? HTTPResponse()
-      }
-      guard !req.body.isEmpty else {
-        return self.jsonResponse(error: "Request body is required", status: .badRequest)
-      }
-
-      do {
-        guard let json = try JSONSerialization.jsonObject(with: req.body) as? [String: Any] else {
-          return self.jsonResponse(error: "Invalid JSON format", status: .badRequest)
-        }
-
-        let defaultTTSVoice = json["defaultTTSVoice"] as? String
-        let defaultSTTLang = json["defaultSTTLanguage"] as? String
-
-        try self.settingsManager.updatePartial(
-          defaultTTSVoice: defaultTTSVoice,
-          defaultSTTLanguage: defaultSTTLang
-        )
-
-        return self.jsonResponse([
-          "status": "ok",
-          "message": "Wyoming settings updated",
-        ])
-      } catch let error as SettingsError {
-        return self.jsonResponse(error: error.localizedDescription, status: .badRequest)
-      } catch {
         return self.jsonResponse(error: "Invalid request: \(error.localizedDescription)", status: .badRequest)
       }
     }
@@ -172,7 +137,7 @@ class HTTPServer: ObservableObject {
     // GET /api/wyoming/tts/voices: Return available TTS voices
     server?.route(.GET, "/api/wyoming/tts/voices") { [weak self] req in
       guard let self = self else {
-        return self?.jsonResponse(error: "Server unavailable", status: .internalServerError) ?? HTTPResponse()
+        return self?.serverUnavailableResponse() ?? HTTPResponse()
       }
 
       let voices = TTSService.getAvailableVoices()
@@ -182,7 +147,7 @@ class HTTPServer: ObservableObject {
     // GET /api/wyoming/stt/languages: Return available STT languages
     server?.route(.GET, "/api/wyoming/stt/languages") { [weak self] req in
       guard let self = self else {
-        return self?.jsonResponse(error: "Server unavailable", status: .internalServerError) ?? HTTPResponse()
+        return self?.serverUnavailableResponse() ?? HTTPResponse()
       }
 
       let languages = STTService.getLanguages()
@@ -208,5 +173,9 @@ class HTTPServer: ObservableObject {
 
   private func jsonResponse(error: String, status: HTTPStatus) -> HTTPResponse {
     return jsonResponse(["error": error], status: status)
+  }
+
+  private func serverUnavailableResponse() -> HTTPResponse {
+    return jsonResponse(error: "Server unavailable", status: .internalServerError)
   }
 }

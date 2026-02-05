@@ -34,6 +34,15 @@ struct ContentView: View {
           }
 
           Section("Text-to-Speech Settings") {
+            Stepper(value: $serverManager.settingsManager.defaultTTSSynthesisTimeout, in: 5...120, step: 1) {
+              HStack {
+                Text("Synthesis Timeout")
+                Spacer()
+                Text(String(format: "%ds", serverManager.settingsManager.defaultTTSSynthesisTimeout))
+                  .foregroundColor(.secondary)
+              }
+            }
+
             NavigationLink(
               destination: TTSVoicesListView(settingsManager: settingsManager)
             ) {
@@ -89,14 +98,15 @@ struct ContentView: View {
             }
           }
         }
+        .navigationTitle("PomumD")
+        .inlineNavigationBarTitle()
         .toolbar {
-          ToolbarItem(placement: .navigation) {
+          ToolbarItem(placement: .trailingBar) {
             Button(action: { showBlackScreen = true }) {
               Image(systemName: "moon.fill")
             }
           }
         }
-        .navigationTitle("PomumD")
         .alert(alertTitle, isPresented: $showAlert) {
           Button("OK", role: .cancel) {}
         } message: {

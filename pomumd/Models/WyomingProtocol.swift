@@ -245,9 +245,9 @@ extension WyomingEvent where Self: Codable {
 }
 
 private struct AudioData: Codable {
-  let rate: Int
-  let width: Int
-  let channels: Int
+  let rate: UInt32
+  let width: UInt32
+  let channels: UInt32
   let timestamp: Int?
 
   init(format: AudioFormat, timestamp: Int?) {
