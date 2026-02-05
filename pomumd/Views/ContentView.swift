@@ -8,9 +8,17 @@ struct ContentView: View {
   @State private var alertTitle = ""
   @State private var alertMessage = ""
   @State private var showBlackScreen = false
+  @State private var savedBrightness: CGFloat = 1.0
 
   private var settingsManager: SettingsManager {
     serverManager.settingsManager
+  }
+
+  private var currentScreen: UIScreen? {
+    guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+      return nil
+    }
+    return windowScene.screen
   }
 
   var body: some View {
@@ -102,7 +110,13 @@ struct ContentView: View {
         .inlineNavigationBarTitle()
         .toolbar {
           ToolbarItem(placement: .trailingBar) {
-            Button(action: { showBlackScreen = true }) {
+            Button(action: {
+              if let screen = currentScreen {
+                savedBrightness = screen.brightness
+                screen.brightness = 0.0
+                showBlackScreen = true
+              }
+            }) {
               Image(systemName: "moon.fill")
             }
           }
@@ -118,6 +132,9 @@ struct ContentView: View {
         Color.black
           .ignoresSafeArea()
           .onTapGesture {
+            if let screen = currentScreen {
+              screen.brightness = savedBrightness
+            }
             showBlackScreen = false
           }
       }
