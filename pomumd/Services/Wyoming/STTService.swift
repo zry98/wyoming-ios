@@ -3,15 +3,11 @@ import Foundation
 import Speech
 
 class STTService {
-  private static let programName: String = {
-    let appName =
-      (Bundle.main.infoDictionary?["CFBundleName"] as? String
-      ?? Bundle.main.infoDictionary?["CFBundleExecutable"] as? String
-      ?? "pomumd")
-      .replacingOccurrences(of: " ", with: "-")
-      .lowercased()
-    return "\(appName)-wyoming-stt"
-  }()
+  private static let programName: String =
+    (Bundle.main.infoDictionary?["CFBundleName"] as? String
+    ?? Bundle.main.infoDictionary?["CFBundleExecutable"] as? String
+    ?? "PomumD")
+    .replacingOccurrences(of: " ", with: "-")
 
   private let metricsCollector: MetricsCollector
 
@@ -45,21 +41,22 @@ class STTService {
     }
 
     let asrModel = ASRModel(
-      name: Self.programName,
-      languages: languages,
+      name: "SFSpeechRecognizer",
       attribution: Attribution.apple,
       installed: true,
       description: "Wyoming Speech-to-Text using iOS SFSpeechRecognizer",
-      version: nil
+      version: nil,
+      languages: languages,
     )
 
     let asrProgram = ASRProgram(
       name: Self.programName,
-      description: "Wyoming Speech-to-Text using iOS SFSpeechRecognizer",
+      attribution: Attribution.pomumd,
       installed: true,
-      attribution: Attribution.apple,
+      description: "Wyoming Speech-to-Text using iOS SFSpeechRecognizer",
+      version: nil,
       models: [asrModel],
-      supportsTranscriptStreaming: true
+      supportsTranscriptStreaming: true,
     )
 
     return [asrProgram]

@@ -1,10 +1,12 @@
 import Foundation
 
+let version = "1.7.2"
+
 private let jsonEncoder = JSONEncoder()
 private let jsonDecoder = JSONDecoder()
 
-class WyomingProtocol {
-  func parseMessage(from data: Data) -> WyomingMessage? {
+enum WyomingProtocol {
+  static func parseMessage(from data: Data) -> WyomingMessage? {
     guard let newlineIdx = data.firstIndex(of: 0x0A) else {
       return nil
     }
@@ -71,11 +73,12 @@ class WyomingProtocol {
     return WyomingMessage(type: header.type, dataBytes: dataBytes, payload: payload, messageSize: expectedSize)
   }
 
-  func serializeMessage(_ message: WyomingMessage) -> Data {
+  static func serializeMessage(_ message: WyomingMessage) -> Data {
     var result = Data()
 
     let header = WyomingHeader(
       type: message.type,
+      version: version,
       dataLength: (message.dataBytes?.count ?? 0) > 0 ? message.dataBytes?.count : nil,
       payloadLength: (message.payload?.count ?? 0) > 0 ? message.payload?.count : nil
     )
@@ -95,69 +98,9 @@ class WyomingProtocol {
 
     return result
   }
-
-  func createInfoEvent(ttsPrograms: [TTSProgram], asrPrograms: [ASRProgram]) -> WyomingMessage {
-    let infoEvent = InfoEvent(asr: asrPrograms, tts: ttsPrograms)
-    return infoEvent.toMessage()
-  }
-
-  func createAudioStartEvent(format: AudioFormat) -> WyomingMessage {
-    let event = AudioStartEvent(format: format, timestamp: nil)
-    return event.toMessage()
-  }
-
-  func createAudioChunkEvent(audioData: Data, format: AudioFormat) -> WyomingMessage {
-    let event = AudioChunkEvent(format: format, audio: audioData, timestamp: nil)
-    return event.toMessage()
-  }
-
-  func createAudioStopEvent() -> WyomingMessage {
-    let event = AudioStopEvent(timestamp: nil)
-    return event.toMessage()
-  }
-
-  func createTranscriptEvent(text: String) -> WyomingMessage {
-    let event = TranscriptEvent(text: text, language: nil)
-    return event.toMessage()
-  }
-
-  func createTranscriptStartEvent(language: String?) -> WyomingMessage {
-    let event = TranscriptStartEvent(language: language)
-    return event.toMessage()
-  }
-
-  func createTranscriptChunkEvent(text: String) -> WyomingMessage {
-    let event = TranscriptChunkEvent(text: text, language: nil)
-    return event.toMessage()
-  }
-
-  func createTranscriptStopEvent() -> WyomingMessage {
-    let event = TranscriptStopEvent()
-    return event.toMessage()
-  }
-
-  func createSynthesizeStartEvent(voice: SynthesizeVoice?) -> WyomingMessage {
-    let event = SynthesizeStartEvent(voice: voice)
-    return event.toMessage()
-  }
-
-  func createSynthesizeChunkEvent(text: String) -> WyomingMessage {
-    let event = SynthesizeChunkEvent(text: text)
-    return event.toMessage()
-  }
-
-  func createSynthesizeStopEvent() -> WyomingMessage {
-    let event = SynthesizeStopEvent()
-    return event.toMessage()
-  }
-
-  func createSynthesizeStoppedEvent() -> WyomingMessage {
-    let event = SynthesizeStoppedEvent()
-    return event.toMessage()
-  }
 }
 
-private struct WyomingHeader: Codable {
+struct WyomingHeader: Codable {
   let type: EventType
   let version: String?
   let dataLength: Int?
@@ -170,7 +113,7 @@ private struct WyomingHeader: Codable {
     case payloadLength = "payload_length"
   }
 
-  init(type: EventType, version: String? = "1.7.2", dataLength: Int? = nil, payloadLength: Int? = nil) {
+  init(type: EventType, version: String? = "1.0.0", dataLength: Int? = nil, payloadLength: Int? = nil) {
     self.type = type
     self.version = version
     self.dataLength = dataLength
@@ -237,14 +180,12 @@ extension WyomingEvent where Self: Codable {
     guard message.type == eventType else {
       throw WyomingEventError.invalidEventType(expected: eventType, got: message.type)
     }
-    guard let dataBytes = message.dataBytes else {
-      throw WyomingEventError.missingRequiredField("dataBytes")
-    }
+    let dataBytes = message.dataBytes ?? Data("{}".utf8)
     return try jsonDecoder.decode(Self.self, from: dataBytes)
   }
 }
 
-private struct AudioData: Codable {
+struct AudioData: Codable {
   let rate: UInt32
   let width: UInt32
   let channels: UInt32
@@ -329,32 +270,12 @@ struct AudioStartEvent: WyomingEvent {
 struct AudioStopEvent: WyomingEvent, Codable {
   static let eventType = EventType.audioStop
   let timestamp: Int?
-
-  static func fromMessage(_ message: WyomingMessage) throws -> AudioStopEvent {
-    guard message.type == eventType else {
-      throw WyomingEventError.invalidEventType(expected: eventType, got: message.type)
-    }
-    guard let dataBytes = message.dataBytes else {
-      return AudioStopEvent(timestamp: nil)
-    }
-    return try jsonDecoder.decode(AudioStopEvent.self, from: dataBytes)
-  }
 }
 
 struct TranscribeEvent: WyomingEvent, Codable {
   static let eventType = EventType.transcribe
   let name: String?
   let language: String?
-
-  static func fromMessage(_ message: WyomingMessage) throws -> TranscribeEvent {
-    guard message.type == eventType else {
-      throw WyomingEventError.invalidEventType(expected: eventType, got: message.type)
-    }
-    guard let dataBytes = message.dataBytes else {
-      return TranscribeEvent(name: nil, language: nil)
-    }
-    return try jsonDecoder.decode(TranscribeEvent.self, from: dataBytes)
-  }
 }
 
 struct TranscriptEvent: WyomingEvent, Codable {
@@ -366,16 +287,6 @@ struct TranscriptEvent: WyomingEvent, Codable {
 struct TranscriptStartEvent: WyomingEvent, Codable {
   static let eventType = EventType.transcriptStart
   let language: String?
-
-  static func fromMessage(_ message: WyomingMessage) throws -> TranscriptStartEvent {
-    guard message.type == eventType else {
-      throw WyomingEventError.invalidEventType(expected: eventType, got: message.type)
-    }
-    guard let dataBytes = message.dataBytes else {
-      return TranscriptStartEvent(language: nil)
-    }
-    return try jsonDecoder.decode(TranscriptStartEvent.self, from: dataBytes)
-  }
 }
 
 struct TranscriptChunkEvent: WyomingEvent, Codable {
@@ -386,13 +297,6 @@ struct TranscriptChunkEvent: WyomingEvent, Codable {
 
 struct TranscriptStopEvent: WyomingEvent, Codable {
   static let eventType = EventType.transcriptStop
-
-  static func fromMessage(_ message: WyomingMessage) throws -> TranscriptStopEvent {
-    guard message.type == eventType else {
-      throw WyomingEventError.invalidEventType(expected: eventType, got: message.type)
-    }
-    return TranscriptStopEvent()
-  }
 }
 
 struct SynthesizeVoice: Codable {
@@ -410,16 +314,6 @@ struct SynthesizeEvent: WyomingEvent, Codable {
 struct SynthesizeStartEvent: WyomingEvent, Codable {
   static let eventType = EventType.synthesizeStart
   let voice: SynthesizeVoice?
-
-  static func fromMessage(_ message: WyomingMessage) throws -> SynthesizeStartEvent {
-    guard message.type == eventType else {
-      throw WyomingEventError.invalidEventType(expected: eventType, got: message.type)
-    }
-    guard let dataBytes = message.dataBytes else {
-      return SynthesizeStartEvent(voice: nil)
-    }
-    return try jsonDecoder.decode(SynthesizeStartEvent.self, from: dataBytes)
-  }
 }
 
 struct SynthesizeChunkEvent: WyomingEvent, Codable {
@@ -429,39 +323,14 @@ struct SynthesizeChunkEvent: WyomingEvent, Codable {
 
 struct SynthesizeStopEvent: WyomingEvent, Codable {
   static let eventType = EventType.synthesizeStop
-
-  static func fromMessage(_ message: WyomingMessage) throws -> SynthesizeStopEvent {
-    guard message.type == eventType else {
-      throw WyomingEventError.invalidEventType(expected: eventType, got: message.type)
-    }
-    return SynthesizeStopEvent()
-  }
 }
 
 struct SynthesizeStoppedEvent: WyomingEvent, Codable {
   static let eventType = EventType.synthesizeStopped
-
-  static func fromMessage(_ message: WyomingMessage) throws -> SynthesizeStoppedEvent {
-    guard message.type == eventType else {
-      throw WyomingEventError.invalidEventType(expected: eventType, got: message.type)
-    }
-    return SynthesizeStoppedEvent()
-  }
 }
 
-struct DescribeEvent: WyomingEvent {
+struct DescribeEvent: WyomingEvent, Codable {
   static let eventType = EventType.describe
-
-  func toMessage() -> WyomingMessage {
-    return WyomingMessage(type: Self.eventType, dataBytes: nil)
-  }
-
-  static func fromMessage(_ message: WyomingMessage) throws -> DescribeEvent {
-    guard message.type == eventType else {
-      throw WyomingEventError.invalidEventType(expected: eventType, got: message.type)
-    }
-    return DescribeEvent()
-  }
 }
 
 struct Attribution: Codable {
@@ -469,57 +338,67 @@ struct Attribution: Codable {
   let url: String
 
   static let apple = Attribution(name: "Apple", url: "https://www.apple.com")
+  static let pomumd = Attribution(name: "PomumD", url: "https://github.com/zry98/pomumd")
 }
 
 struct ASRModel: Codable {
   let name: String
-  let languages: [String]
   let attribution: Attribution
   let installed: Bool
   let description: String?
   let version: String?
+  let languages: [String]
 }
 
 struct ASRProgram: Codable {
   let name: String
-  let description: String?
-  let installed: Bool
   let attribution: Attribution
+  let installed: Bool
+  let description: String?
+  let version: String?
   let models: [ASRModel]
   let supportsTranscriptStreaming: Bool
 
   enum CodingKeys: String, CodingKey {
     case name
-    case description
-    case installed
     case attribution
+    case installed
+    case description
+    case version
     case models
     case supportsTranscriptStreaming = "supports_transcript_streaming"
   }
 }
 
+struct TTSVoiceSpeaker: Codable {
+  let name: String
+}
+
 struct TTSVoice: Codable {
   let name: String
-  let languages: [String]
   let attribution: Attribution
   let installed: Bool
   let description: String?
   let version: String?
+  let languages: [String]
+  let speakers: [TTSVoiceSpeaker]?  // not supported yet
 }
 
 struct TTSProgram: Codable {
   let name: String
-  let description: String?
-  let installed: Bool
   let attribution: Attribution
+  let installed: Bool
+  let description: String?
+  let version: String?
   let voices: [TTSVoice]
   let supportsSynthesizeStreaming: Bool
 
   enum CodingKeys: String, CodingKey {
     case name
-    case description
-    case installed
     case attribution
+    case installed
+    case description
+    case version
     case voices
     case supportsSynthesizeStreaming = "supports_synthesize_streaming"
   }

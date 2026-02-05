@@ -3,15 +3,11 @@ import Foundation
 import NaturalLanguage
 
 class TTSService {
-  private static let programName: String = {
-    let appName =
-      (Bundle.main.infoDictionary?["CFBundleName"] as? String
-      ?? Bundle.main.infoDictionary?["CFBundleExecutable"] as? String
-      ?? "pomumd")
-      .replacingOccurrences(of: " ", with: "-")
-      .lowercased()
-    return "\(appName)-wyoming-tts"
-  }()
+  private static let programName: String =
+    (Bundle.main.infoDictionary?["CFBundleName"] as? String
+    ?? Bundle.main.infoDictionary?["CFBundleExecutable"] as? String
+    ?? "PomumD")
+    .replacingOccurrences(of: " ", with: "-")
 
   private let synthesizer: AVSpeechSynthesizer
   private let metricsCollector: MetricsCollector
@@ -42,21 +38,23 @@ class TTSService {
     let ttsVoices = voices.map { voice in
       TTSVoice(
         name: voice.id,
-        languages: [voice.language],
         attribution: Attribution.apple,
         installed: true,
         description: voice.id,
-        version: nil
+        version: nil,
+        languages: [voice.language],
+        speakers: nil,
       )
     }
 
     let ttsProgram = TTSProgram(
       name: Self.programName,
-      description: "Wyoming Text-to-Speech using iOS AVSpeechSynthesizer",
+      attribution: Attribution.pomumd,
       installed: true,
-      attribution: Attribution.apple,
+      description: "Wyoming Text-to-Speech using iOS AVSpeechSynthesizer",
+      version: nil,
       voices: ttsVoices,
-      supportsSynthesizeStreaming: true
+      supportsSynthesizeStreaming: true,
     )
 
     return [ttsProgram]

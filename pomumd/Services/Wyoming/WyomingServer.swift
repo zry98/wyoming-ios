@@ -91,7 +91,6 @@ class WyomingServer: ObservableObject {
 
 class ConnectionHandler {
   private let connection: NWConnection
-  private let wyomingProtocol: WyomingProtocol
   private let metricsCollector: MetricsCollector
   private let settingsManager: SettingsManager
   private lazy var ttsService: TTSService = TTSService(
@@ -131,6 +130,7 @@ class ConnectionHandler {
     } catch {
       wyomingServerLogger.error("Failed to parse \(T.self): \(error)")
       metricsCollector.recordConnectionError()
+      close()
       return nil
     }
   }
@@ -153,7 +153,7 @@ class ConnectionHandler {
   }
 
   private func sendMessage(_ message: WyomingMessage) {
-    let data = wyomingProtocol.serializeMessage(message)
+    let data = WyomingProtocol.serializeMessage(message)
     sendData(data)
   }
 
@@ -196,7 +196,6 @@ class ConnectionHandler {
     self.connection = connection
     self.metricsCollector = metricsCollector
     self.settingsManager = settingsManager
-    self.wyomingProtocol = WyomingProtocol()
 
     metricsCollector.recordConnection()
     metricsCollector.incrementActiveConnections()
@@ -236,7 +235,7 @@ class ConnectionHandler {
     let ttsPrograms = ttsService.getServiceInfo()
     let asrPrograms = sttService.getServiceInfo()
 
-    let message = wyomingProtocol.createInfoEvent(ttsPrograms: ttsPrograms, asrPrograms: asrPrograms)
+    let message = InfoEvent(asr: asrPrograms, tts: ttsPrograms).toMessage()
     sendMessage(message)
   }
 
@@ -268,7 +267,7 @@ class ConnectionHandler {
   }
 
   private func processBuffer() {
-    while let message = self.wyomingProtocol.parseMessage(from: self.receiveBuffer) {
+    while let message = WyomingProtocol.parseMessage(from: self.receiveBuffer) {
       wyomingServerLogger.debug("Parsed message type: \(message.type)")
       let messageSize = message.messageSize
       if messageSize > 0 && messageSize <= self.receiveBuffer.count {
@@ -342,6 +341,7 @@ class ConnectionHandler {
       } catch {
         wyomingServerLogger.error("Synthesis error: \(error)")
         metricsCollector.recordConnectionError()
+        close()
       }
     }
   }
@@ -426,6 +426,7 @@ class ConnectionHandler {
         } catch {
           wyomingServerLogger.error("SSML chunk synthesis error: \(error)")
           metricsCollector.recordConnectionError()
+          close()
         }
       }
 
@@ -459,6 +460,7 @@ class ConnectionHandler {
         } catch {
           wyomingServerLogger.error("Sentence synthesis error: \(error)")
           metricsCollector.recordConnectionError()
+          close()
         }
       }
     }
@@ -503,18 +505,22 @@ class ConnectionHandler {
       sendAudioStop()
       sendSynthesizeStopped()
 
-      if !hadError, let startTime = streamingTTSStartTime {
+      if let startTime = streamingTTSStartTime {
         let duration = Date().timeIntervalSince(startTime)
         metricsCollector.recordServiceProcessing(duration: duration, serviceType: .tts)
         streamingTTSStartTime = nil
       }
 
       resetStreamingState()
+
+      if hadError {
+        close()
+      }
     }
   }
 
   private func sendAudioStream(_ data: Data, format: AudioFormat) {
-    let startMessage = wyomingProtocol.createAudioStartEvent(format: format)
+    let startMessage = AudioStartEvent(format: format, timestamp: nil).toMessage()
     sendMessage(startMessage)
 
     let chunkSize = 2048
@@ -524,13 +530,13 @@ class ConnectionHandler {
       let end = min(offset + chunkSize, data.count)
       let chunk = data.subdata(in: offset..<end)
 
-      let chunkMessage = wyomingProtocol.createAudioChunkEvent(audioData: chunk, format: format)
+      let chunkMessage = AudioChunkEvent(format: format, audio: chunk, timestamp: nil).toMessage()
       sendMessage(chunkMessage)
 
       offset = end
     }
 
-    let stopMessage = wyomingProtocol.createAudioStopEvent()
+    let stopMessage = AudioStopEvent(timestamp: nil).toMessage()
     sendMessage(stopMessage)
 
     if let startTime = nonStreamingTTSStartTime {
@@ -629,54 +635,55 @@ class ConnectionHandler {
       } catch {
         wyomingServerLogger.error("Transcription error: \(error)")
         metricsCollector.recordConnectionError()
+        close()
       }
     }
   }
 
   private func sendTranscript(_ text: String) {
-    let message = wyomingProtocol.createTranscriptEvent(text: text)
+    let message = TranscriptEvent(text: text, language: nil).toMessage()
     sendMessage(message)
     wyomingServerLogger.debug("Transcript sent")
   }
 
   private func sendTranscriptStart(language: String?) {
-    let message = wyomingProtocol.createTranscriptStartEvent(language: language)
+    let message = TranscriptStartEvent(language: language).toMessage()
     sendMessage(message)
     wyomingServerLogger.debug("Transcript start sent")
   }
 
   private func sendTranscriptChunk(_ text: String) {
-    let message = wyomingProtocol.createTranscriptChunkEvent(text: text)
+    let message = TranscriptChunkEvent(text: text, language: nil).toMessage()
     sendMessage(message)
     wyomingServerLogger.debug("Transcript chunk sent: '\(text)'")
   }
 
   private func sendTranscriptStop() {
-    let message = wyomingProtocol.createTranscriptStopEvent()
+    let message = TranscriptStopEvent().toMessage()
     sendMessage(message)
     wyomingServerLogger.debug("Transcript stop sent")
   }
 
   private func sendAudioChunk(_ audioData: Data, format: AudioFormat) {
     if isSynthesizingStreaming && !hasStartedAudioStream {
-      let startMessage = wyomingProtocol.createAudioStartEvent(format: format)
+      let startMessage = AudioStartEvent(format: format, timestamp: nil).toMessage()
       sendMessage(startMessage)
       hasStartedAudioStream = true
       wyomingServerLogger.debug("Audio start sent (streaming)")
     }
 
-    let message = wyomingProtocol.createAudioChunkEvent(audioData: audioData, format: format)
+    let message = AudioChunkEvent(format: format, audio: audioData, timestamp: nil).toMessage()
     sendMessage(message)
   }
 
   private func sendAudioStop() {
-    let message = wyomingProtocol.createAudioStopEvent()
+    let message = AudioStopEvent(timestamp: nil).toMessage()
     sendMessage(message)
     wyomingServerLogger.debug("Audio stop sent")
   }
 
   private func sendSynthesizeStopped() {
-    let message = wyomingProtocol.createSynthesizeStoppedEvent()
+    let message = SynthesizeStoppedEvent().toMessage()
     sendMessage(message)
     wyomingServerLogger.debug("Synthesize stopped sent")
   }

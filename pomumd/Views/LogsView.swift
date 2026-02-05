@@ -141,7 +141,7 @@ struct LogsView: View {
     Task {
       do {
         let fetchTime = Date()
-        let retrievedLogs = try LogStoreAccess.shared.retrieveLogs(since: lastFetchTime)
+        let retrievedLogs = try LogStoreAccess.retrieveLogs(since: lastFetchTime)
 
         await MainActor.run {
           if lastFetchTime == nil {

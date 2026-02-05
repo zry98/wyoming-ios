@@ -2,7 +2,7 @@ import Foundation
 import OSLog
 import os
 
-class Logger {
+struct Logger {
   private let osLogger: os.Logger
 
   init(subsystem: String, category: String) {
@@ -54,10 +54,8 @@ let metricsLogger = Logger(subsystem: subsystem, category: "metrics")
 let appLogger = Logger(subsystem: subsystem, category: "app")
 
 @available(iOS 15.0, *)
-class LogStoreAccess {
-  static let shared = LogStoreAccess()
-
-  func retrieveLogs(since: Date? = nil, maxCount: Int = 5000) throws -> [OSLogEntryLog] {
+enum LogStoreAccess {
+  static func retrieveLogs(since: Date? = nil, maxCount: Int = 5000) throws -> [OSLogEntryLog] {
     let store = try OSLogStore(scope: .currentProcessIdentifier)
     let startTime = since ?? Date().addingTimeInterval(-3600)
     let position = store.position(date: startTime)
