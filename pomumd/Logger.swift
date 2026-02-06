@@ -10,27 +10,85 @@ struct Logger {
   }
 
   func debug(_ message: String) {
-    osLogger.debug("\(message)")
+    osLogger.debug("\(message, privacy: .public)")
   }
 
   func info(_ message: String) {
-    osLogger.info("\(message)")
+    osLogger.info("\(message, privacy: .public)")
   }
 
   func notice(_ message: String) {
-    osLogger.notice("\(message)")
-  }
-
-  func warning(_ message: String) {
-    osLogger.warning("\(message)")
+    osLogger.notice("\(message, privacy: .public)")
   }
 
   func error(_ message: String) {
-    osLogger.error("\(message)")
+    osLogger.error("\(message, privacy: .public)")
   }
 
   func fault(_ message: String) {
-    osLogger.fault("\(message)")
+    osLogger.fault("\(message, privacy: .public)")
+  }
+}
+
+enum LogLevel: Int, CaseIterable, Identifiable, Codable {
+  case debug = 0
+  case info = 1
+  case notice = 2
+  case error = 3
+  case fault = 4
+
+  var id: Int { rawValue }
+
+  var displayName: String {
+    switch self {
+    case .debug: return "debug"
+    case .info: return "info"
+    case .notice: return "notice"
+    case .error: return "error"
+    case .fault: return "fault"
+    }
+  }
+
+  init?(string: String) {
+    switch string.lowercased() {
+    case "debug": self = .debug
+    case "info": self = .info
+    case "notice": self = .notice
+    case "error": self = .error
+    case "fault": self = .fault
+    default: return nil
+    }
+  }
+
+  static func from(_ osLogLevel: OSLogEntryLog.Level) -> LogLevel {
+    switch osLogLevel {
+    case .debug: return .debug
+    case .info: return .info
+    case .notice: return .notice
+    case .error: return .error
+    case .fault: return .fault
+    default: return .info
+    }
+  }
+}
+
+struct LogEntry: Codable {
+  let timestamp: String
+  let level: String
+  let category: String
+  let message: String
+
+  private static let iso8601Formatter: ISO8601DateFormatter = {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return formatter
+  }()
+
+  init(from osLogEntry: OSLogEntryLog) {
+    self.timestamp = Self.iso8601Formatter.string(from: osLogEntry.date)
+    self.level = LogLevel.from(osLogEntry.level).displayName.lowercased()
+    self.category = osLogEntry.category
+    self.message = osLogEntry.composedMessage
   }
 }
 
@@ -55,7 +113,6 @@ let appLogger = Logger(subsystem: subsystem, category: "app")
 
 let bonjourLogger = Logger(subsystem: subsystem, category: "bonjour")
 
-@available(iOS 15.0, *)
 enum LogStoreAccess {
   static func retrieveLogs(since: Date? = nil, maxCount: Int = 5000) throws -> [OSLogEntryLog] {
     let store = try OSLogStore(scope: .currentProcessIdentifier)

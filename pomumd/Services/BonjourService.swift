@@ -23,7 +23,7 @@ class BonjourService: NSObject, ObservableObject {
 
   func publish() {
     guard netService == nil else {
-      bonjourLogger.warning("Bonjour service already published")
+      bonjourLogger.error("Bonjour service already published")
       return
     }
 

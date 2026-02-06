@@ -1,25 +1,9 @@
 import OSLog
 import SwiftUI
 
-enum LogLevel: Int, CaseIterable, Identifiable {
-  case debug = 0
-  case info = 1
-  case notice = 2
-  case error = 3
-  case fault = 4
+// MARK: - UI Extensions for LogLevel
 
-  var id: Int { rawValue }
-
-  var displayName: String {
-    switch self {
-    case .debug: return "Debug"
-    case .info: return "Info"
-    case .notice: return "Notice"
-    case .error: return "Error"
-    case .fault: return "Fault"
-    }
-  }
-
+extension LogLevel {
   var color: Color {
     switch self {
     case .debug: return .secondary
@@ -29,32 +13,11 @@ enum LogLevel: Int, CaseIterable, Identifiable {
     case .fault: return .purple
     }
   }
-
-  var text: String {
-    switch self {
-    case .debug: return "DEBUG"
-    case .info: return "INFO"
-    case .notice: return "NOTICE"
-    case .error: return "ERROR"
-    case .fault: return "FAULT"
-    }
-  }
-
-  static func from(_ osLogLevel: OSLogEntryLog.Level) -> LogLevel {
-    switch osLogLevel {
-    case .debug: return .debug
-    case .info: return .info
-    case .notice: return .notice
-    case .error: return .error
-    case .fault: return .fault
-    default: return .info
-    }
-  }
 }
 
-@available(iOS 15.0, *)
 struct LogsView: View {
   @State private var logs: [OSLogEntryLog] = []
+  @State private var filteredLogs: [OSLogEntryLog] = []
   @State private var logIds: Set<TimeInterval> = []
   @State private var searchText = ""
   @State private var autoScroll = true
@@ -64,8 +27,8 @@ struct LogsView: View {
   @State private var lastFetchTime: Date?
   @State private var refreshTimer: Timer?
 
-  var filteredLogs: [OSLogEntryLog] {
-    logs.filter { entry in
+  private func updateFilteredLogs() {
+    filteredLogs = logs.filter { entry in
       let logLevel = LogLevel.from(entry.level)
       let meetsLevelRequirement = logLevel.rawValue >= minimumLevel.rawValue
       let meetsSearchRequirement =
@@ -84,15 +47,17 @@ struct LogsView: View {
 
       ScrollViewReader { proxy in
         List {
-          ForEach(filteredLogs, id: \.self) { entry in
+          ForEach(filteredLogs, id: \.date.timeIntervalSince1970) { entry in
             LogEntryRow(entry: entry)
           }
         }
         .listStyle(.plain)
-        .onChange(of: logs.count) { _ in
+        .onChange(of: filteredLogs.count) { _ in
           if autoScroll, let lastLog = filteredLogs.last {
-            withAnimation {
-              proxy.scrollTo(lastLog, anchor: .bottom)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+              withAnimation {
+                proxy.scrollTo(lastLog.date.timeIntervalSince1970, anchor: .bottom)
+              }
             }
           }
         }
@@ -101,6 +66,12 @@ struct LogsView: View {
     .navigationTitle("Logs")
     .inlineNavigationBarTitle()
     .searchable(text: $searchText, prompt: "Search")
+    .onChange(of: searchText) { _ in
+      updateFilteredLogs()
+    }
+    .onChange(of: minimumLevel) { _ in
+      updateFilteredLogs()
+    }
     .toolbar {
       ToolbarItemGroup(placement: .trailingBar) {
         Menu {
@@ -143,31 +114,31 @@ struct LogsView: View {
         let fetchTime = Date()
         let retrievedLogs = try LogStoreAccess.retrieveLogs(since: lastFetchTime)
 
-        await MainActor.run {
-          if lastFetchTime == nil {
-            logs = retrievedLogs
-            logIds = Set(retrievedLogs.map { $0.date.timeIntervalSince1970 })
-          } else {
-            let newLogs = retrievedLogs.filter { !logIds.contains($0.date.timeIntervalSince1970) }
+        if lastFetchTime == nil {
+          logs = retrievedLogs
+          logIds = Set(retrievedLogs.map { $0.date.timeIntervalSince1970 })
+        } else {
+          let newLogs = retrievedLogs.filter { !logIds.contains($0.date.timeIntervalSince1970) }
+
+          if !newLogs.isEmpty {
             logs.append(contentsOf: newLogs)
-            newLogs.forEach { logIds.insert($0.date.timeIntervalSince1970) }
+            logIds.formUnion(newLogs.map { $0.date.timeIntervalSince1970 })
 
             if logs.count > 10000 {
-              let removedCount = logs.count - 10000
-              let removedLogs = logs.prefix(removedCount)
-              removedLogs.forEach { logIds.remove($0.date.timeIntervalSince1970) }
-              logs = Array(logs.suffix(10000))
+              let removeCount = logs.count - 10000
+              let removedLogs = logs.prefix(removeCount)
+              logIds.subtract(removedLogs.map { $0.date.timeIntervalSince1970 })
+              logs.removeFirst(removeCount)
             }
           }
+        }
 
-          lastFetchTime = fetchTime
-          isLoading = false
-        }
+        lastFetchTime = fetchTime
+        updateFilteredLogs()
+        isLoading = false
       } catch {
-        await MainActor.run {
-          errorMessage = error.localizedDescription
-          isLoading = false
-        }
+        errorMessage = error.localizedDescription
+        isLoading = false
       }
     }
   }
@@ -180,7 +151,6 @@ struct LogsView: View {
   }
 }
 
-@available(iOS 15.0, *)
 struct LogEntryRow: View {
   let entry: OSLogEntryLog
 
@@ -207,7 +177,7 @@ struct LogEntryRow: View {
 
         Spacer()
 
-        Text(logLevel.text)
+        Text(logLevel.displayName.uppercased())
           .font(.system(.caption2, design: .monospaced))
           .foregroundColor(logLevel.color)
       }

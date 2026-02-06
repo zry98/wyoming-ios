@@ -1,7 +1,16 @@
 import Combine
 import Foundation
+import OSLog
 import Prometheus
 import Telegraph
+
+// MARK: - Response Models
+
+struct LogsResponse: Codable {
+  let logs: [LogEntry]
+  let count: Int
+  let since: Double
+}
 
 @MainActor
 class HTTPServer: ObservableObject {
@@ -30,7 +39,7 @@ class HTTPServer: ObservableObject {
 
   func start() throws {
     guard server == nil else {
-      httpServerLogger.warning("HTTP server already running")
+      httpServerLogger.error("HTTP server already running")
       return
     }
 
@@ -40,6 +49,7 @@ class HTTPServer: ObservableObject {
     registerHealthRoutes()
     registerMetricsRoutes()
     registerSettingsRoutes()
+    registerLogRoutes()
 
     do {
       try server?.start(port: Int(port))
@@ -147,6 +157,104 @@ class HTTPServer: ObservableObject {
 
       let languages = STTService.getLanguages()
       return self.jsonResponse(languages)
+    }
+  }
+
+  private func registerLogRoutes() {
+    // GET /api/logs: Return application logs
+    server?.route(.GET, "/api/logs") { [weak self] req in
+      guard let self = self else {
+        return self?.serverUnavailableResponse() ?? HTTPResponse()
+      }
+
+      let queryParams = self.parseQueryParameters(req.uri.queryItems)
+      let sinceDate = self.parseSinceParameter(queryParams["since"])
+      let maxCount = Int(queryParams["maxCount"] ?? "") ?? 5000
+      let minLevel = queryParams["level"].flatMap { LogLevel(string: $0) }
+      let categoryFilter = queryParams["category"]
+
+      do {
+        var osLogs = try LogStoreAccess.retrieveLogs(since: sinceDate, maxCount: maxCount)
+
+        if let minLevel = minLevel {
+          osLogs = osLogs.filter { LogLevel.from($0.level).rawValue >= minLevel.rawValue }
+        }
+        if let category = categoryFilter, !category.isEmpty {
+          osLogs = osLogs.filter { $0.category == category }
+        }
+
+        let logEntries = osLogs.map { LogEntry(from: $0) }
+
+        let response = LogsResponse(
+          logs: logEntries,
+          count: logEntries.count,
+          since: sinceDate?.timeIntervalSince1970 ?? 0
+        )
+        return self.jsonResponse(response)
+      } catch {
+        httpServerLogger.error("Failed to retrieve logs: \(error.localizedDescription)")
+        return self.jsonResponse(
+          error: "Failed to retrieve logs: \(error.localizedDescription)", status: .internalServerError)
+      }
+    }
+  }
+
+  // MARK: - Helper Methods
+
+  private static let iso8601Formatter = ISO8601DateFormatter()
+
+  private static let relativeTimeRegex: NSRegularExpression? = {
+    try? NSRegularExpression(pattern: "^(\\d+)([smhd])$", options: [])
+  }()
+
+  private func parseQueryParameters(_ queryItems: [URLQueryItem]?) -> [String: String] {
+    queryItems?.reduce(into: [:]) { params, item in
+      if let value = item.value {
+        params[item.name] = value
+      }
+    } ?? [:]
+  }
+
+  private func parseSinceParameter(_ since: String?) -> Date? {
+    guard let since = since, !since.isEmpty else {
+      return nil
+    }
+
+    if let date = Self.iso8601Formatter.date(from: since) {
+      return date
+    }
+    if let timestamp = Double(since) {
+      return Date(timeIntervalSince1970: timestamp)
+    }
+    if let timeInterval = parseRelativeTime(since) {
+      return Date().addingTimeInterval(-timeInterval)
+    }
+
+    return nil
+  }
+
+  private func parseRelativeTime(_ timeString: String) -> TimeInterval? {
+    guard let regex = Self.relativeTimeRegex,
+      let match = regex.firstMatch(
+        in: timeString, options: [], range: NSRange(timeString.startIndex..., in: timeString))
+    else {
+      return nil
+    }
+
+    guard let valueRange = Range(match.range(at: 1), in: timeString),
+      let unitRange = Range(match.range(at: 2), in: timeString),
+      let value = Double(timeString[valueRange])
+    else {
+      return nil
+    }
+
+    let unit = String(timeString[unitRange])
+    switch unit {
+    case "s": return value
+    case "m": return value * 60
+    case "h": return value * 3600
+    case "d": return value * 86400
+    default: return nil
     }
   }
 
