@@ -2,7 +2,8 @@ import Combine
 import Foundation
 import Network
 
-/// Manages Bonjour (mDNS Zeroconf) service for Home Assistant discovery
+/// Manages Bonjour (mDNS Zeroconf) service for Home Assistant discovery.
+///
 /// Implements the Wyoming protocol service discovery using `_wyoming._tcp.local.`
 class BonjourService: NSObject, ObservableObject {
   @Published var isPublished: Bool = false

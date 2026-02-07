@@ -1,11 +1,23 @@
 import Foundation
 
+/// Wyoming protocol version implemented by this server
 let version = "1.7.2"
 
 private let jsonEncoder = JSONEncoder()
 private let jsonDecoder = JSONDecoder()
 
+// MARK: - Protocol Parser
+
+/// Wyoming protocol message parser and serializer.
+///
+/// Implements the Wyoming protocol wire format: JSON header + newline + optional data + optional payload.
+/// Used for bidirectional communication between TTS/STT clients and this server.
 enum WyomingProtocol {
+
+  /// Parses a Wyoming protocol message from raw TCP data.
+  ///
+  /// - Parameter data: Raw bytes from TCP stream
+  /// - Returns: Parsed message if complete and valid, nil if incomplete or malformed
   static func parseMessage(from data: Data) -> WyomingMessage? {
     guard let newlineIdx = data.firstIndex(of: 0x0A) else {
       return nil
@@ -73,6 +85,10 @@ enum WyomingProtocol {
     return WyomingMessage(type: header.type, dataBytes: dataBytes, payload: payload, messageSize: expectedSize)
   }
 
+  /// Serializes a Wyoming message to wire format.
+  ///
+  /// - Parameter message: Message to serialize
+  /// - Returns: Wire format bytes (header + newline + data + payload)
   static func serializeMessage(_ message: WyomingMessage) -> Data {
     var result = Data()
 
@@ -100,11 +116,14 @@ enum WyomingProtocol {
   }
 }
 
+// MARK: - Protocol Structures
+
+/// JSON header for Wyoming protocol messages.
 struct WyomingHeader: Codable {
   let type: EventType
   let version: String?
-  let dataLength: Int?
-  let payloadLength: Int?
+  let dataLength: Int?  // Size of JSON metadata section in bytes
+  let payloadLength: Int?  // Size of binary payload section in bytes
 
   enum CodingKeys: String, CodingKey {
     case type
@@ -121,11 +140,12 @@ struct WyomingHeader: Codable {
   }
 }
 
+/// Parsed Wyoming protocol message with type and optional data sections.
 struct WyomingMessage {
   let type: EventType
-  let dataBytes: Data?
-  let payload: Data?
-  let messageSize: Int
+  let dataBytes: Data?  // JSON metadata (e.g., audio format, text content)
+  let payload: Data?  // Binary data (e.g., raw audio samples)
+  let messageSize: Int  // Total message size in bytes
 
   init(type: EventType, dataBytes: Data? = nil, payload: Data? = nil, messageSize: Int = 0) {
     self.type = type
@@ -135,6 +155,9 @@ struct WyomingMessage {
   }
 }
 
+// MARK: - Event Types
+
+/// Wyoming protocol event types.
 enum EventType: String, Codable {
   case describe = "describe"
   case info = "info"
@@ -153,6 +176,7 @@ enum EventType: String, Codable {
   case synthesizeStopped = "synthesize-stopped"
 }
 
+/// Protocol for Wyoming event types with serialization/deserialization.
 protocol WyomingEvent {
   static var eventType: EventType { get }
 
@@ -164,6 +188,8 @@ enum WyomingEventError: Error {
   case invalidEventType(expected: EventType, got: EventType)
   case missingRequiredField(String)
 }
+
+// MARK: - Event Protocol Extension
 
 extension WyomingEvent where Self: Codable {
   func toMessage() -> WyomingMessage {
@@ -185,11 +211,14 @@ extension WyomingEvent where Self: Codable {
   }
 }
 
+// MARK: - Audio Events
+
+/// Audio format metadata for Wyoming protocol audio events.
 struct AudioData: Codable {
-  let rate: UInt32
-  let width: UInt32
-  let channels: UInt32
-  let timestamp: Int?
+  let rate: UInt32  // Sample rate in Hz
+  let width: UInt32  // Bytes per sample
+  let channels: UInt32  // Number of channels
+  let timestamp: Int?  // Optional timestamp in milliseconds
 
   init(format: AudioFormat, timestamp: Int?) {
     self.rate = format.rate
@@ -272,6 +301,8 @@ struct AudioStopEvent: WyomingEvent, Codable {
   let timestamp: Int?
 }
 
+// MARK: - Transcript Events
+
 struct TranscribeEvent: WyomingEvent, Codable {
   static let eventType = EventType.transcribe
   let name: String?
@@ -298,6 +329,8 @@ struct TranscriptChunkEvent: WyomingEvent, Codable {
 struct TranscriptStopEvent: WyomingEvent, Codable {
   static let eventType = EventType.transcriptStop
 }
+
+// MARK: - Synthesis Events
 
 struct SynthesizeVoice: Codable {
   let name: String?
@@ -328,6 +361,8 @@ struct SynthesizeStopEvent: WyomingEvent, Codable {
 struct SynthesizeStoppedEvent: WyomingEvent, Codable {
   static let eventType = EventType.synthesizeStopped
 }
+
+// MARK: - Service Info Events
 
 struct DescribeEvent: WyomingEvent, Codable {
   static let eventType = EventType.describe

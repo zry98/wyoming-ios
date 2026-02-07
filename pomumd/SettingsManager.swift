@@ -2,14 +2,15 @@ import AVFoundation
 import Combine
 import Foundation
 
-// default values
-let defaultPitch: Float = 1.0
-let defaultPause: Float = 0.3
-let defaultSynthesisTimeout: Int = 5
+/// Default settings values
+let defaultPitch: Float = 1.0  // Normal pitch multiplier
+let defaultPause: Float = 0.3  // Pause between sentences in seconds
+let defaultSynthesisTimeout: Int = 5  // Base timeout for synthesis in seconds
 
+/// Manages persistent settings with UserDefaults.
 @MainActor
 class SettingsManager: ObservableObject {
-  // UserDefaults keys
+  // UserDefaults keys for persistent storage
   static let userDefaultsKeyDefaultTTSSynthesisTimeout = "defaultTTSSynthesisTimeout"
   static let userDefaultsKeyDefaultTTSVoice = "defaultTTSVoice"
   static let userDefaultsKeyDefaultSTTLanguage = "defaultSTTLanguage"
@@ -18,6 +19,8 @@ class SettingsManager: ObservableObject {
   static let userDefaultsKeyDefaultTTSPause = "defaultTTSPause"
   static let userDefaultsKeyDefaultTTSPrefersAssistiveTechnologySettings =
     "defaultTTSPrefersAssistiveTechnologySettings"
+
+  // MARK: - Published Properties
 
   @Published var defaultTTSSynthesisTimeout: Int {
     didSet {
@@ -79,6 +82,9 @@ class SettingsManager: ObservableObject {
       forKey: Self.userDefaultsKeyDefaultTTSPrefersAssistiveTechnologySettings)
   }
 
+  // MARK: - Settings Management
+
+  /// Resets all TTS voice parameters to system defaults
   func resetTTSVoiceSettings() {
     self.defaultTTSRate = AVSpeechUtteranceDefaultSpeechRate
     self.defaultTTSPitch = defaultPitch
@@ -86,6 +92,7 @@ class SettingsManager: ObservableObject {
     self.defaultTTSPrefersAssistiveTechnologySettings = false
   }
 
+  /// Validates that a voice ID exists in available system voices.
   func validateTTSVoice(_ voiceID: String) throws {
     guard !voiceID.isEmpty else {
       // empty will fallback to system default
@@ -99,6 +106,7 @@ class SettingsManager: ObservableObject {
     }
   }
 
+  /// Validates that a language ID is supported by the STT service.
   func validateSTTLanguage(_ langID: String) throws {
     guard !langID.isEmpty else {
       // empty will fallback to system default
@@ -112,6 +120,9 @@ class SettingsManager: ObservableObject {
     }
   }
 
+  // MARK: - Serialization
+
+  /// Serializable settings structure for HTTP API requests.
   struct Settings: Codable {
     let defaultTTSSynthesisTimeout: Int?
     let defaultTTSVoice: String?
@@ -134,6 +145,7 @@ class SettingsManager: ObservableObject {
     )
   }
 
+  /// Updates settings from HTTP API request.
   func updateFromSettings(_ settings: Settings) throws {
     let newTTSVoice = settings.defaultTTSVoice ?? self.defaultTTSVoice
     let newSTTLang = settings.defaultSTTLanguage ?? self.defaultSTTLanguage

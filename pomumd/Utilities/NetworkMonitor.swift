@@ -2,13 +2,15 @@ import Combine
 import Foundation
 import Network
 
+/// Represents a network interface with its IP address
 struct NetworkInterface: Identifiable {
   let id = UUID()
-  let name: String
-  let address: String
+  let name: String  // Interface name (e.g., "en0", "utun0")
+  let address: String  // IP address (IPv4 or IPv6)
   let isIPv6: Bool
 }
 
+/// Monitors network interfaces and publishes available IP addresses.
 class NetworkMonitor: ObservableObject {
   @Published var interfaces: [NetworkInterface] = []
 

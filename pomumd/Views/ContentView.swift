@@ -4,6 +4,7 @@ import Network
 import Speech
 import SwiftUI
 
+/// Main app view displaying server status, settings, and controls.
 struct ContentView: View {
   @EnvironmentObject private var serverManager: ServerManager
   @StateObject private var networkMonitor = NetworkMonitor()
@@ -153,6 +154,7 @@ struct ContentView: View {
       }
 
       #if os(iOS)
+        /// Screensaver for preventing OLED burn-in.
         if showBlackScreen {
           Color.black
             .ignoresSafeArea()

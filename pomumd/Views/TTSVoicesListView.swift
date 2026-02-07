@@ -1,6 +1,7 @@
 import AVFoundation
 import SwiftUI
 
+/// TTS voice selection view with speech parameter controls.
 struct TTSVoicesListView: View {
   @ObservedObject var settingsManager: SettingsManager
   @State private var voices: [Voice] = []
@@ -120,6 +121,7 @@ struct TTSVoicesListView: View {
     }
   }
 
+  /// Sorts voices by language first, then by name within each language
   private func updateSortedVoices() {
     sortedVoices = voices.sorted { v1, v2 in
       if v1.language != v2.language {
@@ -129,6 +131,7 @@ struct TTSVoicesListView: View {
     }
   }
 
+  /// Plays a voice sample using the language name as text.
   private func playVoiceSample(_ voice: Voice) {
     // stop any currently playing speech
     if previewSynthesizer.isSpeaking {

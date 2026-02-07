@@ -6,12 +6,20 @@ import Telegraph
 
 // MARK: - Response Models
 
+/// Response structure for logs API endpoint.
 struct LogsResponse: Codable {
   let logs: [LogEntry]
   let count: Int
-  let since: Double
+  let since: Double  // Unix timestamp
 }
 
+/// HTTP REST API server providing health checks, metrics, settings, and logs.
+///
+/// Exposes endpoints for:
+/// - `/health` - Health check
+/// - `/metrics` - Prometheus metrics
+/// - `/api/settings` - Get/set settings
+/// - `/api/logs` - Retrieve application logs
 @MainActor
 class HTTPServer: ObservableObject {
   @Published var isRunning: Bool = false
@@ -45,7 +53,6 @@ class HTTPServer: ObservableObject {
 
     server = Server()
 
-    // register routes
     registerHealthRoutes()
     registerMetricsRoutes()
     registerSettingsRoutes()

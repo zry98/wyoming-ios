@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// STT language selection view.
 struct STTLanguagesListView: View {
   @ObservedObject var settingsManager: SettingsManager
   @State private var languages: [String] = []

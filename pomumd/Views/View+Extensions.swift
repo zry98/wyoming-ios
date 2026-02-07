@@ -1,3 +1,5 @@
+// Cross-platform UI extensions for iOS and macOS compatibility
+
 import SwiftUI
 
 extension View {

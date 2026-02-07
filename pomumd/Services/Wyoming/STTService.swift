@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 import Speech
 
+/// Speech-to-Text service over Wyoming protocol.
 class STTService {
   private static let programName: String =
     (Bundle.main.infoDictionary?["CFBundleName"] as? String
@@ -15,10 +16,16 @@ class STTService {
     self.metricsCollector = metricsCollector
   }
 
+  /// Returns all supported language identifiers for speech recognition.
+  ///
+  /// - Returns: Array of BCP 47 language codes (e.g., "en-US", "zh-CN")
   static func getLanguages() -> [String] {
     return SFSpeechRecognizer.supportedLocales().map { $0.identifier }
   }
 
+  /// Resolves the language to use for transcription.
+  ///
+  /// Priority: provided language > saved default > nil (system default)
   private func resolveLanguage(_ providedLanguage: String?) -> String? {
     if let lang = providedLanguage {
       sttLogger.info("Using specified language: \(lang)")
@@ -62,6 +69,18 @@ class STTService {
     return [asrProgram]
   }
 
+  /// Transcribes audio data to text using on-device speech recognition.
+  ///
+  /// Automatically selects the best available API based on platform version.
+  ///
+  /// - Parameters:
+  ///   - audioData: Raw PCM audio samples (Int16 format)
+  ///   - sampleRate: Sample rate in Hz (e.g., 16000)
+  ///   - channels: Number of audio channels (1=mono, 2=stereo)
+  ///   - language: BCP 47 language code, or nil for default
+  ///   - onPartialResult: Optional callback for streaming partial transcriptions
+  /// - Returns: Final transcribed text
+  /// - Throws: STTError if transcription fails
   func transcribe(
     audioData: Data,
     sampleRate: UInt32,
@@ -103,6 +122,7 @@ class STTService {
     return result
   }
 
+  /// Transcribes audio using the modern SpeechAnalyzer API (iOS 26+).
   @available(iOS 26.0, macOS 26.0, *)
   private func transcribeWithSpeechAnalyzer(
     audioData: Data,
@@ -138,13 +158,11 @@ class STTService {
       throw STTError.invalidAudioData
     }
 
-    // convert audio data to PCM buffer in source format
     guard let sourcePCMBuffer = createPCMBuffer(from: audioData, format: sourceFormat) else {
       throw STTError.invalidAudioData
     }
     sttLogger.debug("Created source PCM buffer: \(sourcePCMBuffer.frameLength) frames")
 
-    // resample if needed
     let finalBuffer: AVAudioPCMBuffer
     if sourceFormat.sampleRate != targetFormat.sampleRate || sourceFormat.channelCount != targetFormat.channelCount {
       sttLogger.info("Resampling from \(sourceFormat.sampleRate) Hz to \(targetFormat.sampleRate) Hz")
@@ -159,7 +177,6 @@ class STTService {
 
     let analyzer = SpeechAnalyzer(modules: [transcriber])
 
-    // input audio in a task
     Task {
       let input = AnalyzerInput(buffer: finalBuffer)
       inputBuilder.yield(input)
@@ -167,14 +184,12 @@ class STTService {
       sttLogger.debug("Audio input finished")
     }
 
-    // collect transcription results in a task
     var transcription = ""
     let resultsTask = Task {
       do {
         for try await result in transcriber.results {
           transcription = String(result.text.characters)
           sttLogger.info("Received transcription: '\(transcription)'")
-          // call callback for streaming partial results
           onPartialResult?(transcription)
         }
       } catch {
@@ -190,13 +205,13 @@ class STTService {
       await analyzer.cancelAndFinishNow()
     }
 
-    // wait for results task to complete
     try await resultsTask.value
 
     sttLogger.info("Transcription complete: '\(transcription)'")
     return transcription
   }
 
+  /// Transcribes audio using the legacy SFSpeechRecognizer API (iOS 16+).
   private func transcribeWithSFSpeechRecognizer(
     audioData: Data,
     sampleRate: UInt32,
@@ -247,7 +262,6 @@ class STTService {
         if let result = result {
           let transcription = result.bestTranscription.formattedString
 
-          // call callback for streaming partial results
           if !result.isFinal {
             sttLogger.info("Received partial transcription: '\(transcription)'")
             onPartialResult?(transcription)
@@ -261,6 +275,8 @@ class STTService {
       }
     }
   }
+
+  // MARK: - Audio Conversion
 
   private func resampleAudio(buffer: AVAudioPCMBuffer, to targetFormat: AVAudioFormat) -> AVAudioPCMBuffer? {
     return try? AudioBufferConverter.resample(buffer, to: targetFormat)

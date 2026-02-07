@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 import NaturalLanguage
 
+/// Text-to-Speech service over Wyoming protocol.
 class TTSService {
   private static let programName: String =
     (Bundle.main.infoDictionary?["CFBundleName"] as? String
@@ -23,11 +24,15 @@ class TTSService {
     synthesizer.stopSpeaking(at: .immediate)
   }
 
+  /// Returns all available TTS voices on the device.
+  ///
+  /// - Returns: Array of Voice models with quality information
   static func getAvailableVoices() -> [Voice] {
     let voices = AVSpeechSynthesisVoice.speechVoices()
     return voices.map { Voice(from: $0) }
   }
 
+  /// Returns Wyoming protocol service information for TTS capabilities.
   func getServiceInfo() -> [TTSProgram] {
     let voices = Self.getAvailableVoices()
 
@@ -60,6 +65,13 @@ class TTSService {
     return [ttsProgram]
   }
 
+  /// Synthesizes text to audio in non-streaming mode.
+  ///
+  /// - Parameters:
+  ///   - text: Plain text or SSML to synthesize
+  ///   - voiceIdentifier: Voice ID or language code, or nil for default
+  /// - Returns: Complete audio data and format
+  /// - Throws: Error if synthesis fails
   func synthesize(text: String, voiceIdentifier: String?) async throws -> (data: Data, format: AudioFormat) {
     var accumulated = Data()
     var capturedFormat: AudioFormat?
@@ -72,10 +84,15 @@ class TTSService {
     return (data: accumulated, format: capturedFormat ?? AudioFormat.commonFormat)
   }
 
+  // MARK: - SSML Handling
+
   private func convertBufferToData(_ buf: AVAudioPCMBuffer) -> Data? {
     return try? AudioBufferConverter.convertToData(buf)
   }
 
+  /// Validates if text is well-formed SSML.
+  ///
+  /// Checks for XML structure and required `<speak>` root element.
   private func isValidSSML(_ text: String) -> Bool {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     let lowercased = trimmed.lowercased()
@@ -288,6 +305,8 @@ class TTSService {
     }
   }
 
+  // MARK: - Helper Methods
+
   private func resolveVoiceIdentifier(_ voiceIdentifier: String?) -> String? {
     if let voiceID = voiceIdentifier {
       return voiceID
@@ -317,6 +336,12 @@ class TTSService {
     return Data(count: Int(totalBytes))
   }
 
+  /// Extracts the first complete sentence from text for streaming synthesis.
+  ///
+  /// Uses NLTokenizer for natural sentence boundary detection.
+  ///
+  /// - Parameter text: Input text to tokenize
+  /// - Returns: Tuple of (first sentence, remaining text), or nil if no complete sentence found
   func extractCompleteSentence(from text: String) -> (sentence: String, remaining: String)? {
     let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedText.isEmpty else { return nil }
@@ -341,6 +366,15 @@ class TTSService {
     return nil
   }
 
+  /// Synthesizes text with streaming audio buffer callbacks.
+  ///
+  /// Used for streaming TTS where audio chunks are sent as they're generated.
+  ///
+  /// - Parameters:
+  ///   - text: Plain text or SSML to synthesize
+  ///   - voiceIdentifier: Voice ID or language code, or nil for default
+  ///   - onAudioBuffer: Callback invoked for each audio buffer chunk
+  /// - Throws: Error if synthesis fails
   func synthesizeWithCallback(
     text: String,
     voiceIdentifier: String?,
@@ -350,6 +384,11 @@ class TTSService {
   }
 }
 
+// MARK: - SSML Chunker
+
+/// Parses SSML documents and splits them into first-level child elements for streaming synthesis.
+///
+/// Preserves the `<speak>` root element attributes in each chunk for proper SSML structure.
 class SSMLChunker: NSObject, XMLParserDelegate {
   private var speakAttributes: [String: String] = [:]
   private var currentDepth = 0

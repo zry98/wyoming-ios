@@ -3,6 +3,7 @@ import Foundation
 import Metrics
 import Prometheus
 
+/// Configures Prometheus metrics collection for monitoring server performance.
 struct MetricsService {
   struct Configuration {
     let prometheusRegistry: PrometheusCollectorRegistry
@@ -33,7 +34,11 @@ struct MetricsService {
   }
 }
 
+/// Collects application and hardware metrics for Prometheus export.
+///
+/// Tracks connections, processing times, audio bytes, CPU, memory, and thermal state.
 class MetricsCollector {
+
   private let namespace =
     (Bundle.main.infoDictionary?["CFBundleName"] as? String
     ?? Bundle.main.infoDictionary?["CFBundleExecutable"] as? String
@@ -42,7 +47,7 @@ class MetricsCollector {
     .replacingOccurrences(of: " ", with: "_")
     .lowercased()
 
-  // application metrics
+  // Application metrics: connections, errors, processing times
   private let totalConnectionsCounter: Metrics.Counter
   private let activeConnectionsGauge: Metrics.Gauge
   private var activeConnectionsCount: Int = 0
@@ -56,7 +61,7 @@ class MetricsCollector {
   private let networkBytesInCounter: Metrics.Counter
   private let networkBytesOutCounter: Metrics.Counter
 
-  // hardware metrics
+  // Hardware metrics: CPU, memory, thermal state
   private let cpuUsageTotalGauge: Metrics.Gauge
   private let thermalStateGauge: Metrics.Gauge
   private let memoryTotalGauge: Metrics.Gauge
@@ -153,6 +158,8 @@ class MetricsCollector {
     memoryAppUsedGauge.record(snapshot.memoryAppUsed)
   }
 }
+
+// MARK: - Hardware Metrics
 
 struct HardwareMetrics {
   let cpuUsageTotal: Float32

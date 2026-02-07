@@ -3,13 +3,14 @@ import Foundation
 import Prometheus
 import Speech
 
+/// Central orchestrator managing HTTP, Wyoming, and Bonjour services.
 @MainActor
 class ServerManager: ObservableObject {
   let httpServer: HTTPServer
   let wyomingServer: WyomingServer
   let bonjourService: BonjourService
-  static let httpServerPort: UInt16 = 10100
-  static let wyomingServerPort: UInt16 = 10200
+  static let httpServerPort: UInt16 = 10100  // HTTP API port
+  static let wyomingServerPort: UInt16 = 10200  // Wyoming protocol port
 
   @Published var errorMessage: String?
   @Published var hasRequestedPermissions = false
@@ -42,7 +43,7 @@ class ServerManager: ObservableObject {
 
     self.settingsManager = settingsManager
 
-    // forward changes from nested ObservableObjects to trigger SwiftUI view updates
+    // Forward changes from nested ObservableObjects to trigger SwiftUI view updates
     wyomingServer.objectWillChange.sink { [weak self] _ in
       self?.objectWillChange.send()
     }.store(in: &cancellables)
@@ -56,6 +57,8 @@ class ServerManager: ObservableObject {
     }.store(in: &cancellables)
   }
 
+  // MARK: - Server Lifecycle
+
   func startServers() {
     let errors = [
       startServer(name: "HTTP", port: Self.httpServerPort) { try httpServer.start() },
@@ -63,7 +66,7 @@ class ServerManager: ObservableObject {
     ].compactMap { $0 }
 
     if errors.isEmpty {
-      bonjourService.publish()  // publish zeroconf only after Wyoming server is successfully started
+      bonjourService.publish()  // publish Zeroconf only after Wyoming server is successfully started
     }
 
     errorMessage = errors.isEmpty ? nil : errors.joined(separator: "\n")
@@ -97,6 +100,8 @@ class ServerManager: ObservableObject {
       startServers()
     }
   }
+
+  // MARK: - Permissions
 
   func requestPermissions(onComplete: @escaping (Bool) -> Void) {
     guard !hasRequestedPermissions else {
