@@ -120,6 +120,8 @@ let appLogger = Logger(subsystem: subsystem, category: "app")
 
 let bonjourLogger = Logger(subsystem: subsystem, category: "bonjour")
 
+let llmLogger = Logger(subsystem: subsystem, category: "llm")
+
 /// Utility for retrieving logs from OSLogStore for HTTP API.
 enum LogStoreAccess {
   /// Retrieves logs from the current process, filtered by subsystem

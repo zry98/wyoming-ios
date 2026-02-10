@@ -68,6 +68,16 @@ class MetricsCollector {
   private let memoryFreeGauge: Metrics.Gauge
   private let memoryAppUsedGauge: Metrics.Gauge
 
+  // LLM metrics
+  private let llmRequestsCounter: Metrics.Counter
+  private let llmActiveRequestsGauge: Metrics.Gauge
+  private var llmActiveRequestsCount: Int = 0
+  private let llmTokensGeneratedCounter: Metrics.Counter
+  private let llmGenerationTimer: Metrics.Timer
+  private let llmModelLoadsCounter: Metrics.Counter
+  private let llmModelLoadTimer: Metrics.Timer
+  private let llmErrorsCounter: Metrics.Counter
+
   init() {
     self.cpuUsageTotalGauge = Gauge(label: "\(namespace)_cpu_usage_total_percent")
     self.thermalStateGauge = Gauge(label: "\(namespace)_thermal_state")
@@ -90,6 +100,14 @@ class MetricsCollector {
     self.restartCounter = Counter(label: "\(namespace)_restarts_total")
     self.networkBytesInCounter = Counter(label: "\(namespace)_network_bytes_received_total")
     self.networkBytesOutCounter = Counter(label: "\(namespace)_network_bytes_sent_total")
+
+    self.llmRequestsCounter = Counter(label: "\(namespace)_llm_requests_total")
+    self.llmActiveRequestsGauge = Gauge(label: "\(namespace)_llm_active_requests")
+    self.llmTokensGeneratedCounter = Counter(label: "\(namespace)_llm_tokens_generated_total")
+    self.llmGenerationTimer = Timer(label: "\(namespace)_llm_generation_duration_milliseconds")
+    self.llmModelLoadsCounter = Counter(label: "\(namespace)_llm_model_loads_total")
+    self.llmModelLoadTimer = Timer(label: "\(namespace)_llm_model_load_duration_milliseconds")
+    self.llmErrorsCounter = Counter(label: "\(namespace)_llm_errors_total")
   }
 
   func recordServerRestart() {
@@ -156,6 +174,42 @@ class MetricsCollector {
     memoryTotalGauge.record(snapshot.memoryTotal)
     memoryFreeGauge.record(snapshot.memoryFree)
     memoryAppUsedGauge.record(snapshot.memoryAppUsed)
+  }
+
+  // MARK: - LLM Metrics
+
+  func recordLLMRequest() {
+    llmRequestsCounter.increment()
+    llmActiveRequestsCount += 1
+    llmActiveRequestsGauge.record(llmActiveRequestsCount)
+  }
+
+  func recordLLMRequestComplete() {
+    llmActiveRequestsCount -= 1
+    llmActiveRequestsGauge.record(llmActiveRequestsCount)
+  }
+
+  func recordLLMTokensGenerated(_ count: Int) {
+    llmTokensGeneratedCounter.increment(by: Int64(count))
+  }
+
+  func recordLLMGeneration(duration: TimeInterval) {
+    if duration > 0 {
+      let milliseconds = Int64(duration * 1000)
+      llmGenerationTimer.recordMilliseconds(milliseconds)
+    }
+  }
+
+  func recordLLMModelLoad(duration: TimeInterval) {
+    llmModelLoadsCounter.increment()
+    if duration > 0 {
+      let milliseconds = Int64(duration * 1000)
+      llmModelLoadTimer.recordMilliseconds(milliseconds)
+    }
+  }
+
+  func recordLLMError() {
+    llmErrorsCounter.increment()
   }
 }
 

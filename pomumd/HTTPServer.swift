@@ -13,6 +13,39 @@ struct LogsResponse: Codable {
   let since: Double  // Unix timestamp
 }
 
+/// Helper for decoding dynamic JSON
+struct AnyCodable: Codable {
+  let value: Any
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    if let int = try? container.decode(Int.self) {
+      value = int
+    } else if let double = try? container.decode(Double.self) {
+      value = double
+    } else if let string = try? container.decode(String.self) {
+      value = string
+    } else if let bool = try? container.decode(Bool.self) {
+      value = bool
+    } else {
+      value = ""
+    }
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.singleValueContainer()
+    if let int = value as? Int {
+      try container.encode(int)
+    } else if let double = value as? Double {
+      try container.encode(double)
+    } else if let string = value as? String {
+      try container.encode(string)
+    } else if let bool = value as? Bool {
+      try container.encode(bool)
+    }
+  }
+}
+
 /// HTTP REST API server providing health checks, metrics, settings, and logs.
 ///
 /// Exposes endpoints for:
@@ -29,6 +62,7 @@ class HTTPServer: ObservableObject {
   private let metricsCollector: MetricsCollector
   private let prometheusRegistry: PrometheusCollectorRegistry
   private let settingsManager: SettingsManager
+  private let llmService: LLMService
 
   private let jsonEncoder = JSONEncoder()
   private let jsonDecoder = JSONDecoder()
@@ -37,12 +71,14 @@ class HTTPServer: ObservableObject {
     port: UInt16 = 10100,
     metricsCollector: MetricsCollector,
     registry: PrometheusCollectorRegistry,
-    settingsManager: SettingsManager
+    settingsManager: SettingsManager,
+    llmService: LLMService
   ) {
     self.port = port
     self.metricsCollector = metricsCollector
     self.prometheusRegistry = registry
     self.settingsManager = settingsManager
+    self.llmService = llmService
   }
 
   func start() throws {
@@ -57,6 +93,7 @@ class HTTPServer: ObservableObject {
     registerMetricsRoutes()
     registerSettingsRoutes()
     registerLogRoutes()
+    registerLLMRoutes()
 
     do {
       try server?.start(port: Int(port))
@@ -204,6 +241,307 @@ class HTTPServer: ObservableObject {
           error: "Failed to retrieve logs: \(error.localizedDescription)", status: .internalServerError)
       }
     }
+  }
+
+  // MARK: - LLM Routes
+
+  private func registerLLMRoutes() {
+    // OpenAI-compatible endpoint: GET /v1/models
+    server?.route(.GET, "/v1/models") { [weak self] req in
+      guard let self = self else {
+        let resp = HTTPResponse()
+        resp.status = .internalServerError
+        return resp
+      }
+
+      let modelNames = self.llmService.getAvailableModelNames()
+      let response = ["data": modelNames.map { ["id": $0] }]
+      return self.jsonResponse(response)
+    }
+
+    // GET /api/llm/settings: Return LLM settings.
+    server?.route(.GET, "/api/llm/settings") { [weak self] req in
+      guard let self = self else {
+        let resp = HTTPResponse()
+        resp.status = .internalServerError
+        return resp
+      }
+
+      struct LLMSettingsResponse: Codable {
+        let defaultModel: String
+        let defaultTemperature: Float
+        let defaultMaxTokens: Int
+        let defaultTopP: Float
+      }
+
+      let settings = LLMSettingsResponse(
+        defaultModel: self.settingsManager.defaultLLMModel,
+        defaultTemperature: self.settingsManager.defaultLLMTemperature,
+        defaultMaxTokens: self.settingsManager.defaultLLMMaxTokens,
+        defaultTopP: self.settingsManager.defaultLLMTopP
+      )
+
+      return self.jsonResponse(settings)
+    }
+
+    // POST /api/llm/settings: Update LLM settings.
+    server?.route(.POST, "/api/llm/settings") { [weak self] req in
+      guard let self = self else {
+        let resp = HTTPResponse()
+        resp.status = .internalServerError
+        return resp
+      }
+
+      guard !req.body.isEmpty else {
+        return self.jsonResponse(error: "Missing request body", status: .badRequest)
+      }
+
+      do {
+        let settings = try self.jsonDecoder.decode([String: AnyCodable].self, from: req.body)
+
+        if let model = settings["defaultModel"]?.value as? String {
+          let availableModels = self.llmService.getAvailableModelNames()
+          try self.settingsManager.validateLLMModel(model, availableModels: availableModels)
+          self.settingsManager.defaultLLMModel = model
+        }
+
+        if let temp = settings["defaultTemperature"]?.value as? Double {
+          self.settingsManager.defaultLLMTemperature = Float(temp)
+        }
+
+        if let maxTokens = settings["defaultMaxTokens"]?.value as? Int {
+          self.settingsManager.defaultLLMMaxTokens = maxTokens
+        }
+
+        if let topP = settings["defaultTopP"]?.value as? Double {
+          self.settingsManager.defaultLLMTopP = Float(topP)
+        }
+
+        return self.jsonResponse(["status": "ok"])
+      } catch {
+        return self.jsonResponse(error: error.localizedDescription, status: .badRequest)
+      }
+    }
+
+    // OpenAI-compatible endpoint: POST /v1/chat/completions
+    server?.route(.POST, "/v1/chat/completions") { [weak self] req in
+      guard let self = self else {
+        let resp = HTTPResponse()
+        resp.status = .internalServerError
+        return resp
+      }
+
+      httpServerLogger.info("Received POST /v1/chat/completions request")
+
+      guard !req.body.isEmpty else {
+        httpServerLogger.error("Request body is empty")
+        return self.jsonResponse(error: "Missing request body", status: .badRequest)
+      }
+
+      if let bodyString = String(data: req.body, encoding: .utf8) {
+        httpServerLogger.debug("Request body: \(bodyString)")
+      }
+
+      do {
+        let request = try self.jsonDecoder.decode(ChatCompletionRequest.self, from: req.body)
+        httpServerLogger.info(
+          "Successfully parsed request: model=\(request.model ?? "default"), messages=\(request.messages.count), stream=\(request.stream ?? false)"
+        )
+
+        if request.stream == true {
+          httpServerLogger.info("Handling streaming request")
+          return self.handleStreamingChatCompletion(request: request)
+        } else {
+          httpServerLogger.info("Handling non-streaming request")
+          return self.handleNonStreamingChatCompletion(request: request)
+        }
+      } catch {
+        httpServerLogger.error("Failed to parse request: \(error.localizedDescription)")
+        if let decodingError = error as? DecodingError {
+          httpServerLogger.error("Decoding error details: \(decodingError)")
+        }
+        return self.jsonResponse(error: "Invalid request format: \(error.localizedDescription)", status: .badRequest)
+      }
+    }
+  }
+
+  // MARK: - Chat Completion Handlers
+
+  private func handleNonStreamingChatCompletion(request: ChatCompletionRequest) -> HTTPResponse {
+    let semaphore = DispatchSemaphore(value: 0)
+    var result: HTTPResponse?
+
+    Task { @MainActor in
+      do {
+        let modelName = request.model ?? self.settingsManager.defaultLLMModel
+        let startLoad = Date()
+        _ = try await self.llmService.loadModel(modelName)
+        let loadDuration = Date().timeIntervalSince(startLoad)
+        if loadDuration > 0.1 {
+          self.metricsCollector.recordLLMModelLoad(duration: loadDuration)
+        }
+
+        self.metricsCollector.recordLLMRequest()
+
+        var additionalContext: [String: any Sendable] = [:]
+        for item in self.settingsManager.defaultLLMAdditionalContext {
+          if let value = item.toSendableValue() {
+            additionalContext[item.key] = value
+          }
+        }
+        if let requestContext = request.additionalContext {
+          for (key, value) in requestContext {
+            additionalContext[key] = value.value
+          }
+        }
+
+        let startTime = Date()
+        let text = try await self.llmService.generateSync(
+          messages: request.messages,
+          temperature: request.temperature ?? self.settingsManager.defaultLLMTemperature,
+          maxTokens: request.maxTokens ?? self.settingsManager.defaultLLMMaxTokens,
+          topP: request.topP ?? self.settingsManager.defaultLLMTopP,
+          additionalContext: additionalContext.isEmpty ? nil : additionalContext
+        )
+        let duration = Date().timeIntervalSince(startTime)
+
+        self.metricsCollector.recordLLMGeneration(duration: duration)
+        self.metricsCollector.recordLLMTokensGenerated(text.split(separator: " ").count)
+        self.metricsCollector.recordLLMRequestComplete()
+
+        let response = ChatCompletionResponse(
+          id: UUID().uuidString,
+          model: modelName,
+          choices: [
+            ChatCompletionResponse.Choice(
+              index: 0,
+              message: ChatMessage(role: "assistant", content: text),
+              finishReason: "stop"
+            )
+          ],
+          usage: ChatCompletionResponse.Usage(
+            promptTokens: 0,
+            completionTokens: text.split(separator: " ").count,
+            totalTokens: text.split(separator: " ").count
+          )
+        )
+
+        result = self.jsonResponse(response)
+      } catch {
+        self.metricsCollector.recordLLMError()
+        result = self.jsonResponse(error: error.localizedDescription, status: .internalServerError)
+      }
+      semaphore.signal()
+    }
+
+    semaphore.wait()
+    return result ?? self.jsonResponse(error: "Unknown error", status: .internalServerError)
+  }
+
+  private func handleStreamingChatCompletion(request: ChatCompletionRequest) -> HTTPResponse {
+    let sema = DispatchSemaphore(value: 0)
+    var result: HTTPResponse?
+
+    Task { @MainActor in
+      do {
+        let modelName = request.model ?? self.settingsManager.defaultLLMModel
+        let startLoad = Date()
+        _ = try await self.llmService.loadModel(modelName)
+        let loadDuration = Date().timeIntervalSince(startLoad)
+        if loadDuration > 0.1 {
+          self.metricsCollector.recordLLMModelLoad(duration: loadDuration)
+        }
+
+        self.metricsCollector.recordLLMRequest()
+
+        var additionalContext: [String: any Sendable] = [:]
+        for item in self.settingsManager.defaultLLMAdditionalContext {
+          if let value = item.toSendableValue() {
+            additionalContext[item.key] = value
+          }
+        }
+        if let requestContext = request.additionalContext {
+          for (key, value) in requestContext {
+            additionalContext[key] = value.value
+          }
+        }
+
+        let startTime = Date()
+        let stream = try await self.llmService.generate(
+          messages: request.messages,
+          temperature: request.temperature ?? self.settingsManager.defaultLLMTemperature,
+          maxTokens: request.maxTokens ?? self.settingsManager.defaultLLMMaxTokens,
+          topP: request.topP ?? self.settingsManager.defaultLLMTopP,
+          additionalContext: additionalContext.isEmpty ? nil : additionalContext
+        )
+
+        var fullText = ""
+        var chunks: [String] = []
+
+        for await token in stream {
+          fullText += token
+          let chunk = ChatCompletionChunk(
+            id: UUID().uuidString,
+            model: modelName,
+            choices: [
+              ChatCompletionChunk.ChunkChoice(
+                index: 0,
+                delta: ChatCompletionChunk.Delta(role: nil, content: token),
+                finishReason: nil
+              )
+            ]
+          )
+
+          if let chunkData = try? self.jsonEncoder.encode(chunk),
+            let chunkString = String(data: chunkData, encoding: .utf8)
+          {
+            chunks.append("data: \(chunkString)\n\n")
+          }
+        }
+
+        // add final chunk with finish_reason
+        let finalChunk = ChatCompletionChunk(
+          id: UUID().uuidString,
+          model: modelName,
+          choices: [
+            ChatCompletionChunk.ChunkChoice(
+              index: 0,
+              delta: ChatCompletionChunk.Delta(role: nil, content: ""),
+              finishReason: "stop"
+            )
+          ]
+        )
+
+        if let chunkData = try? self.jsonEncoder.encode(finalChunk),
+          let chunkString = String(data: chunkData, encoding: .utf8)
+        {
+          chunks.append("data: \(chunkString)\n\n")
+        }
+
+        chunks.append("data: [DONE]\n\n")
+
+        let duration = Date().timeIntervalSince(startTime)
+        self.metricsCollector.recordLLMGeneration(duration: duration)
+        self.metricsCollector.recordLLMTokensGenerated(fullText.split(separator: " ").count)
+        self.metricsCollector.recordLLMRequestComplete()
+
+        let resp = HTTPResponse()
+        resp.status = .ok
+        resp.headers.contentType = "text/event-stream"
+        resp.headers["Cache-Control"] = "no-cache"
+        resp.headers["Connection"] = "keep-alive"
+        resp.body = chunks.joined().data(using: .utf8) ?? Data()
+
+        result = resp
+      } catch {
+        self.metricsCollector.recordLLMError()
+        result = self.jsonResponse(error: error.localizedDescription, status: .internalServerError)
+      }
+      sema.signal()
+    }
+
+    sema.wait()
+    return result ?? self.jsonResponse(error: "Unknown error", status: .internalServerError)
   }
 
   // MARK: - Helper Methods

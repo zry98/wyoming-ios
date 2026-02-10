@@ -3,12 +3,13 @@ import Foundation
 import Prometheus
 import Speech
 
-/// Central orchestrator managing HTTP, Wyoming, and Bonjour services.
+/// Central orchestrator managing HTTP and Wyoming servers.
 @MainActor
 class ServerManager: ObservableObject {
   let httpServer: HTTPServer
   let wyomingServer: WyomingServer
   let bonjourService: BonjourService
+  let llmService: LLMService
   static let httpServerPort: UInt16 = 10100  // HTTP API port
   static let wyomingServerPort: UInt16 = 10200  // Wyoming protocol port
 
@@ -26,11 +27,14 @@ class ServerManager: ObservableObject {
     self.prometheusRegistry = metricsConfig.prometheusRegistry
     self.metricsCollector = metricsConfig.metricsCollector
 
+    self.llmService = LLMService()
+
     self.httpServer = HTTPServer(
       port: Self.httpServerPort,
       metricsCollector: metricsCollector,
       registry: prometheusRegistry,
       settingsManager: settingsManager,
+      llmService: llmService
     )
 
     self.wyomingServer = WyomingServer(
@@ -43,7 +47,7 @@ class ServerManager: ObservableObject {
 
     self.settingsManager = settingsManager
 
-    // Forward changes from nested ObservableObjects to trigger SwiftUI view updates
+    /// Forward changes from nested ObservableObjects to trigger SwiftUI view updates.
     wyomingServer.objectWillChange.sink { [weak self] _ in
       self?.objectWillChange.send()
     }.store(in: &cancellables)
@@ -55,6 +59,24 @@ class ServerManager: ObservableObject {
     bonjourService.objectWillChange.sink { [weak self] _ in
       self?.objectWillChange.send()
     }.store(in: &cancellables)
+
+    // Observe changes to default LLM model and load/unload accordingly
+    settingsManager.$defaultLLMModel
+      .dropFirst() // Skip initial value
+      .sink { [weak self] newModel in
+        guard let self = self else { return }
+        Task { @MainActor in
+          if newModel.isEmpty {
+            self.llmService.unloadModel()
+          } else {
+            do {
+              _ = try await self.llmService.loadModel(newModel)
+            } catch {
+              wyomingServerLogger.error("Failed to load model '\(newModel)': \(error.localizedDescription)")
+            }
+          }
+        }
+      }.store(in: &cancellables)
   }
 
   // MARK: - Server Lifecycle
@@ -67,6 +89,11 @@ class ServerManager: ObservableObject {
 
     if errors.isEmpty {
       bonjourService.publish()  // publish Zeroconf only after Wyoming server is successfully started
+
+      // Preload default LLM model in background for faster first request
+      Task {
+        await llmService.preloadModel(settingsManager.defaultLLMModel)
+      }
     }
 
     errorMessage = errors.isEmpty ? nil : errors.joined(separator: "\n")

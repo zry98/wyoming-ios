@@ -43,7 +43,7 @@ struct STTLanguagesListView: View {
       languages = STTService.getLanguages()
       updateSortedLanguages()
     }
-    .onChange(of: languages) { _ in
+    .onChange(of: languages) {
       updateSortedLanguages()
     }
   }

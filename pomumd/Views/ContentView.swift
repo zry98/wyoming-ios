@@ -32,6 +32,22 @@ struct ContentView: View {
     ZStack {
       NavigationView {
         List {
+          Section("HTTP Server") {
+            HStack {
+              Text("Status")
+              Spacer()
+              Text(serverManager.httpServer.isRunning ? "Running" : "Stopped")
+                .foregroundColor(serverManager.httpServer.isRunning ? .green : .red)
+            }
+
+            HStack {
+              Text("Port")
+              Spacer()
+              Text("\(String(serverManager.httpServer.port))")
+                .foregroundColor(.secondary)
+            }
+          }
+
           Section("Wyoming Server") {
             HStack {
               Text("Status")
@@ -46,12 +62,10 @@ struct ContentView: View {
               Text("\(String(serverManager.wyomingServer.port))")
                 .foregroundColor(.secondary)
             }
-          }
 
-          Section("Text-to-Speech Settings") {
             Stepper(value: $serverManager.settingsManager.defaultTTSSynthesisTimeout, in: 5...120, step: 1) {
               HStack {
-                Text("Synthesis Timeout")
+                Text("TTS Synthesis Timeout")
                 Spacer()
                 Text(String(format: "%ds", serverManager.settingsManager.defaultTTSSynthesisTimeout))
                   .foregroundColor(.secondary)
@@ -61,31 +75,46 @@ struct ContentView: View {
             NavigationLink(
               destination: TTSVoicesListView(settingsManager: settingsManager)
             ) {
-              Text("Voices")
+              Text("TTS Voices")
             }
-          }
 
-          Section("Speech-to-Text Settings") {
             NavigationLink(
               destination: STTLanguagesListView(settingsManager: settingsManager)
             ) {
-              Text("Languages")
+              Text("STT Languages")
             }
           }
 
-          Section("HTTP Server") {
+          Section("LLM Service") {
             HStack {
               Text("Status")
               Spacer()
-              Text(serverManager.httpServer.isRunning ? "Running" : "Stopped")
-                .foregroundColor(serverManager.httpServer.isRunning ? .green : .red)
+              Text(serverManager.llmService.isModelLoaded ? "Ready" : "Not Loaded")
+                .foregroundColor(serverManager.llmService.isModelLoaded ? .green : .gray)
             }
 
-            HStack {
-              Text("Port")
-              Spacer()
-              Text("\(String(serverManager.httpServer.port))")
-                .foregroundColor(.secondary)
+            if let model = serverManager.llmService.currentModelName {
+              HStack {
+                Text("Model")
+                Spacer()
+                Text(model)
+                  .foregroundColor(.secondary)
+              }
+            }
+
+            NavigationLink(
+              destination: LLMModelsListView(
+                settingsManager: settingsManager,
+                llmService: serverManager.llmService
+              )
+            ) {
+              Text("Models")
+            }
+
+            NavigationLink(
+              destination: LLMAdditionalContextView(settingsManager: settingsManager)
+            ) {
+              Text("Additional Context")
             }
           }
 

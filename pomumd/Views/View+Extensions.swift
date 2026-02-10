@@ -22,3 +22,24 @@ extension ToolbarItemPlacement {
     #endif
   }
 }
+
+extension View {
+  @ViewBuilder
+  func navigationBarItems<Leading: View, Trailing: View>(
+    leading: Leading,
+    trailing: Trailing
+  ) -> some View {
+    #if os(iOS)
+      self.navigationBarItems(leading: leading, trailing: trailing)
+    #else
+      self.toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          leading
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          trailing
+        }
+      }
+    #endif
+  }
+}
