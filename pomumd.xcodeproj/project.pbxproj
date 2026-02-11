@@ -27,7 +27,6 @@
 		403136C52F3CCBAA00BEE73A /* Exceptions for "pomumd" folder in "pomumd-lite" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Assets.xcassets,
 				Info.plist,
 				Models/LLMAdditionalContextItem.swift,
 				Models/LLMModels.swift,

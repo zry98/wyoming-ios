@@ -71,6 +71,10 @@ class ServerManager: ObservableObject {
     }.store(in: &cancellables)
 
     #if !LITE
+      llmService.objectWillChange.sink { [weak self] _ in
+        self?.objectWillChange.send()
+      }.store(in: &cancellables)
+
       // observe changes to default LLM model and load/unload accordingly
       settingsManager.$defaultLLMModel
         .dropFirst()  // Skip initial value
