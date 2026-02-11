@@ -1,8 +1,11 @@
 # PomumD
 
-[Wyoming Protocol](https://github.com/OHF-Voice/wyoming) text-to-speech (TTS) and speech-to-text (STT) server using iOS AVFoundation and Speech frameworks, on-device processing only.
+> [!IMPORTANT]
+> This project is in very early development stage, expect many breaking changes and bugs.
 
-Runs on iOS/iPadOS 16.0+ and macOS 13.0+ devices.
+[Wyoming Protocol](https://github.com/OHF-Voice/wyoming) text-to-speech (TTS) and speech-to-text (STT) server using iOS AVFoundation and Speech frameworks, and OpenAI Conversation API-compatible LLM server, on-device processing only.
+
+Runs on iOS/iPadOS 17.0+ and macOS 14.0+ devices (iOS/iPadOS 16.0+ and macOS 13.0+ for the lite version without LLM)
 
 ## Text-to-Speech
 
@@ -10,8 +13,8 @@ Runs on iOS/iPadOS 16.0+ and macOS 13.0+ devices.
 
 - Support over 60 languages available in [Spoken Content](https://www.apple.com/ios/feature-availability/#accessibility-voiceover) (depending on OS version), with all the available voices (compact, enhanced, premium), except Siri voices.
 
-> _Keep in mind that although Siri voices are available to be selected in Spoken Content Settings, they are not available through the AVSpeechSynthesizer API._
-> (https://developer.apple.com/videos/play/wwdc2020/10022/?time=213)
+> [!NOTE]
+> _Keep in mind that although Siri voices are available to be selected in Spoken Content Settings, they are not available through the AVSpeechSynthesizer API._ (https://developer.apple.com/videos/play/wwdc2020/10022/?time=213)
 
 - Support a subset of SSML tags, no documentation available from Apple yet, some tags will crash the synthesizer (`EXC_BAD_ACCESS`) on certain OS versions (e.g., macOS 15.7.3).
 
@@ -25,6 +28,16 @@ For others: [SFSpeechRecognizer](https://developer.apple.com/documentation/speec
 
 - Support over 60 languages available in [Dictation](https://www.apple.com/ios/feature-availability/#dictation) (depending on OS version).
 
+## LLM Chat
+
+[MLX Swift LM](https://github.com/ml-explore/mlx-swift-lm).
+
+> [!NOTE]
+> Not available in the lite version targeting iOS 16.0+ and macOS 13.0+ due to the mlx-swift-lm package [requirements](https://github.com/ml-explore/mlx-swift-lm/blob/57f2fe7720730236e7a3ba5acd820aa53bae6d18/Package.swift#L8-L13).
+
+- Support OpenAI Conversation API for using with [Home LLM](https://github.com/acon96/home-llm) integration.
+- For a list of supported models, see [LLMRegistry](https://swiftpackageindex.com/ml-explore/mlx-swift-examples/2.29.1/documentation/mlxllm/llmregistry).
+
 ## Other Features
 
 - HTTP health check endpoint at `/health`.
@@ -37,14 +50,18 @@ For others: [SFSpeechRecognizer](https://developer.apple.com/documentation/speec
 - [ ] Fix SSML validation to prevent crashes.
 - [ ] On-device LLM using Foundation Models framework (iOS/iPadOS/macOS 26.0+ only).
 - [ ] Support for other TTS and STT models using MLX.
+- [ ] VLM and integration with LLM Vision.
 
 ## Screenshot
 
-<img src="assets/screenshot_1.png" alt="screenshot of main view" width="45%" align="left">
+<img src="assets/screenshot_1.png" alt="screenshot of main view on iPhone 17" width="45%" align="left">
 
-<img src="assets/screenshot_2.png" alt="screenshot of TTS voices view" width="45%" align="right">
+<img src="assets/screenshot_2.png" alt="screenshot of TTS voices view on iPhone 8" width="45%" align="right">
 
 <br clear="both">
+<br>
+
+<img src="assets/screenshot_3.png" alt="screenshot of LLM models view on macOS" align="center">
 
 ## Older Devices
 
