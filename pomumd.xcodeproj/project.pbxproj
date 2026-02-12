@@ -16,6 +16,9 @@
 		40B63E3D2F34364F00E79A1C /* Telegraph in Frameworks */ = {isa = PBXBuildFile; productRef = 40B63E3C2F34364F00E79A1C /* Telegraph */; };
 		40B63E402F34365700E79A1C /* Metrics in Frameworks */ = {isa = PBXBuildFile; productRef = 40B63E3F2F34365700E79A1C /* Metrics */; };
 		40B63E432F34365C00E79A1C /* Prometheus in Frameworks */ = {isa = PBXBuildFile; productRef = 40B63E422F34365C00E79A1C /* Prometheus */; };
+		40CD5CB72F3DDF96001A9503 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 403136B42F3CCBAA00BEE73A /* MLXLLM */; };
+		40CD5CB82F3DDF96001A9503 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 403136B62F3CCBAA00BEE73A /* MLXLMCommon */; };
+		40CD5CB92F3DDF96001A9503 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 403136B72F3CCBAA00BEE73A /* MLXVLM */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -62,6 +65,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				40CD5CB92F3DDF96001A9503 /* MLXVLM in Frameworks */,
+				40CD5CB82F3DDF96001A9503 /* MLXLMCommon in Frameworks */,
+				40CD5CB72F3DDF96001A9503 /* MLXLLM in Frameworks */,
 				403136BD2F3CCBAA00BEE73A /* Metrics in Frameworks */,
 				403136BE2F3CCBAA00BEE73A /* Prometheus in Frameworks */,
 				403136BF2F3CCBAA00BEE73A /* Telegraph in Frameworks */,

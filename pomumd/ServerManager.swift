@@ -29,7 +29,7 @@ class ServerManager: ObservableObject {
     self.prometheusRegistry = metricsConfig.prometheusRegistry
     self.metricsCollector = metricsConfig.metricsCollector
     #if !LITE
-      self.llmService = LLMService()
+      self.llmService = LLMService(metricsCollector: metricsCollector)
 
       self.httpServer = HTTPServer(
         port: Self.httpServerPort,
@@ -106,9 +106,11 @@ class ServerManager: ObservableObject {
     if errors.isEmpty {
       bonjourService.publish()  // publish Zeroconf only after Wyoming server is successfully started
       #if !LITE
-        // preload default LLM model for faster first request
-        Task {
-          await llmService.preloadModel(settingsManager.defaultLLMModel)
+        // preload default LLM model in background for faster first request
+        if UserDefaults.standard.string(forKey: SettingsManager.userDefaultsKeyDefaultLLMModel) != nil {
+          Task {
+            await llmService.preloadModel(settingsManager.defaultLLMModel)
+          }
         }
       #endif
     }

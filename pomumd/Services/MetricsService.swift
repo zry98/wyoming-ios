@@ -74,9 +74,14 @@ class MetricsCollector {
     private let llmActiveRequestsGauge: Metrics.Gauge
     private var llmActiveRequestsCount: Int = 0
     private let llmTokensGeneratedCounter: Metrics.Counter
+    private let llmPromptTokensCounter: Metrics.Counter
     private let llmGenerationTimer: Metrics.Timer
+    private let llmTimeToFirstTokenTimer: Metrics.Timer
+    private let llmTokensPerSecondGauge: Metrics.Gauge
     private let llmModelLoadsCounter: Metrics.Counter
     private let llmModelLoadTimer: Metrics.Timer
+    private let llmToolCallsCounter: Metrics.Counter
+    private let llmStreamingRequestsCounter: Metrics.Counter
     private let llmErrorsCounter: Metrics.Counter
   #endif
 
@@ -107,9 +112,14 @@ class MetricsCollector {
       self.llmRequestsCounter = Counter(label: "\(namespace)_llm_requests_total")
       self.llmActiveRequestsGauge = Gauge(label: "\(namespace)_llm_active_requests")
       self.llmTokensGeneratedCounter = Counter(label: "\(namespace)_llm_tokens_generated_total")
+      self.llmPromptTokensCounter = Counter(label: "\(namespace)_llm_prompt_tokens_total")
       self.llmGenerationTimer = Timer(label: "\(namespace)_llm_generation_duration_milliseconds")
+      self.llmTimeToFirstTokenTimer = Timer(label: "\(namespace)_llm_time_to_first_token_milliseconds")
+      self.llmTokensPerSecondGauge = Gauge(label: "\(namespace)_llm_tokens_per_second")
       self.llmModelLoadsCounter = Counter(label: "\(namespace)_llm_model_loads_total")
       self.llmModelLoadTimer = Timer(label: "\(namespace)_llm_model_load_duration_milliseconds")
+      self.llmToolCallsCounter = Counter(label: "\(namespace)_llm_tool_calls_total")
+      self.llmStreamingRequestsCounter = Counter(label: "\(namespace)_llm_streaming_requests_total")
       self.llmErrorsCounter = Counter(label: "\(namespace)_llm_errors_total")
     #endif
   }
@@ -215,6 +225,29 @@ class MetricsCollector {
 
     func recordLLMError() {
       llmErrorsCounter.increment()
+    }
+
+    func recordLLMPromptTokens(_ count: Int) {
+      llmPromptTokensCounter.increment(by: Int64(count))
+    }
+
+    func recordLLMTimeToFirstToken(duration: TimeInterval) {
+      if duration > 0 {
+        let milliseconds = Int64(duration * 1000)
+        llmTimeToFirstTokenTimer.recordMilliseconds(milliseconds)
+      }
+    }
+
+    func recordLLMTokensPerSecond(_ tokensPerSecond: Double) {
+      llmTokensPerSecondGauge.record(tokensPerSecond)
+    }
+
+    func recordLLMToolCalls(_ count: Int) {
+      llmToolCallsCounter.increment(by: Int64(count))
+    }
+
+    func recordLLMStreamingRequest() {
+      llmStreamingRequestsCounter.increment()
     }
   #endif
 }

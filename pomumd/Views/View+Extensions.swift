@@ -30,18 +30,23 @@ extension ToolbarItemPlacement {
       leading: Leading,
       trailing: Trailing
     ) -> some View {
-      #if os(iOS)
-        self.navigationBarItems(leading: leading, trailing: trailing)
-      #else
-        self.toolbar {
+      self.toolbar {
+        #if os(iOS)
+          ToolbarItem(placement: .navigationBarLeading) {
+            leading
+          }
+          ToolbarItem(placement: .navigationBarTrailing) {
+            trailing
+          }
+        #else
           ToolbarItem(placement: .cancellationAction) {
             leading
           }
           ToolbarItem(placement: .confirmationAction) {
             trailing
           }
-        }
-      #endif
+        #endif
+      }
     }
   }
 #endif

@@ -18,16 +18,26 @@ struct LogsResponse: Codable {
   struct AnyCodable: Codable {
     let value: Any
 
+    init(_ value: Any) {
+      self.value = value
+    }
+
     init(from decoder: Decoder) throws {
       let container = try decoder.singleValueContainer()
-      if let int = try? container.decode(Int.self) {
+      if container.decodeNil() {
+        value = NSNull()
+      } else if let bool = try? container.decode(Bool.self) {
+        value = bool
+      } else if let int = try? container.decode(Int.self) {
         value = int
       } else if let double = try? container.decode(Double.self) {
         value = double
       } else if let string = try? container.decode(String.self) {
         value = string
-      } else if let bool = try? container.decode(Bool.self) {
-        value = bool
+      } else if let array = try? container.decode([AnyCodable].self) {
+        value = array.map { $0.value }
+      } else if let dict = try? container.decode([String: AnyCodable].self) {
+        value = dict.mapValues { $0.value }
       } else {
         value = ""
       }
@@ -35,14 +45,23 @@ struct LogsResponse: Codable {
 
     func encode(to encoder: Encoder) throws {
       var container = encoder.singleValueContainer()
-      if let int = value as? Int {
-        try container.encode(int)
-      } else if let double = value as? Double {
-        try container.encode(double)
-      } else if let string = value as? String {
-        try container.encode(string)
-      } else if let bool = value as? Bool {
+      switch value {
+      case is NSNull:
+        try container.encodeNil()
+      case let bool as Bool:
         try container.encode(bool)
+      case let int as Int:
+        try container.encode(int)
+      case let double as Double:
+        try container.encode(double)
+      case let string as String:
+        try container.encode(string)
+      case let array as [Any]:
+        try container.encode(array.map { AnyCodable($0) })
+      case let dict as [String: Any]:
+        try container.encode(dict.mapValues { AnyCodable($0) })
+      default:
+        break
       }
     }
   }
@@ -352,10 +371,7 @@ class HTTPServer: ObservableObject {
           return resp
         }
 
-        httpServerLogger.info("Received POST /v1/chat/completions request")
-
         guard !req.body.isEmpty else {
-          httpServerLogger.error("Request body is empty")
           return self.jsonResponse(error: "Missing request body", status: .badRequest)
         }
 
@@ -366,18 +382,11 @@ class HTTPServer: ObservableObject {
         do {
           let request = try self.jsonDecoder.decode(ChatCompletionRequest.self, from: req.body)
           httpServerLogger.info(
-            "Successfully parsed request: model=\(request.model ?? "default"), messages=\(request.messages.count), stream=\(request.stream ?? false)"
+            "POST /v1/chat/completions: model=\(request.model ?? "default"), messages=\(request.messages.count), stream=\(request.stream ?? false)"
           )
-
-          if request.stream == true {
-            httpServerLogger.info("Handling streaming request")
-            return self.handleStreamingChatCompletion(request: request)
-          } else {
-            httpServerLogger.info("Handling non-streaming request")
-            return self.handleNonStreamingChatCompletion(request: request)
-          }
+          return self.handleChatCompletion(request: request)
         } catch {
-          httpServerLogger.error("Failed to parse request: \(error.localizedDescription)")
+          httpServerLogger.error("Failed to parse chat completion request: \(error.localizedDescription)")
           if let decodingError = error as? DecodingError {
             httpServerLogger.error("Decoding error details: \(decodingError)")
           }
@@ -388,7 +397,7 @@ class HTTPServer: ObservableObject {
 
     // MARK: - Chat Completion Handlers
 
-    private func handleNonStreamingChatCompletion(request: ChatCompletionRequest) -> HTTPResponse {
+    private func handleChatCompletion(request: ChatCompletionRequest) -> HTTPResponse {
       let semaphore = DispatchSemaphore(value: 0)
       var result: HTTPResponse?
 
@@ -404,6 +413,12 @@ class HTTPServer: ObservableObject {
 
           self.metricsCollector.recordLLMRequest()
 
+          // Record prompt tokens (approximate word count from all messages)
+          let promptTokens = request.messages.reduce(0) { count, message in
+            count + (message.content?.split(separator: " ").count ?? 0)
+          }
+          self.metricsCollector.recordLLMPromptTokens(promptTokens)
+
           var additionalContext: [String: any Sendable] = [:]
           for item in self.settingsManager.defaultLLMAdditionalContext {
             if let value = item.toSendableValue() {
@@ -416,13 +431,16 @@ class HTTPServer: ObservableObject {
             }
           }
 
+          let toolSpecs = self.convertToToolSpecs(request.tools)
+
           let startTime = Date()
-          let text = try await self.llmService.generateSync(
+          let (text, toolCalls) = try await self.llmService.generateSync(
             messages: request.messages,
             temperature: request.temperature ?? self.settingsManager.defaultLLMTemperature,
             maxTokens: request.maxTokens ?? self.settingsManager.defaultLLMMaxTokens,
             topP: request.topP ?? self.settingsManager.defaultLLMTopP,
-            additionalContext: additionalContext.isEmpty ? nil : additionalContext
+            additionalContext: additionalContext.isEmpty ? nil : additionalContext,
+            tools: toolSpecs
           )
           let duration = Date().timeIntervalSince(startTime)
 
@@ -430,24 +448,40 @@ class HTTPServer: ObservableObject {
           self.metricsCollector.recordLLMTokensGenerated(text.split(separator: " ").count)
           self.metricsCollector.recordLLMRequestComplete()
 
-          let response = ChatCompletionResponse(
-            id: UUID().uuidString,
-            model: modelName,
-            choices: [
-              ChatCompletionResponse.Choice(
-                index: 0,
-                message: ChatMessage(role: "assistant", content: text),
-                finishReason: "stop"
-              )
-            ],
-            usage: ChatCompletionResponse.Usage(
-              promptTokens: 0,
-              completionTokens: text.split(separator: " ").count,
-              totalTokens: text.split(separator: " ").count
-            )
-          )
+          let hasToolCalls = !toolCalls.isEmpty
+          let useStreaming = request.stream == true
 
-          result = self.jsonResponse(response)
+          if useStreaming {
+            self.metricsCollector.recordLLMStreamingRequest()
+            result = self.buildStreamingResponse(
+              text: text, toolCalls: toolCalls, modelName: modelName)
+          } else {
+            let message = ChatMessage(
+              role: "assistant",
+              content: hasToolCalls ? "" : text,
+              toolCalls: hasToolCalls ? toolCalls : nil
+            )
+
+            let response = ChatCompletionResponse(
+              object: "chat.completion",
+              id: UUID().uuidString,
+              model: modelName,
+              choices: [
+                ChatCompletionResponse.Choice(
+                  index: 0,
+                  message: message,
+                  finishReason: hasToolCalls ? "tool_calls" : "stop"
+                )
+              ],
+              usage: ChatCompletionResponse.Usage(
+                promptTokens: 0,
+                completionTokens: text.split(separator: " ").count,
+                totalTokens: text.split(separator: " ").count
+              )
+            )
+
+            result = self.jsonResponse(response)
+          }
         } catch {
           self.metricsCollector.recordLLMError()
           result = self.jsonResponse(error: error.localizedDescription, status: .internalServerError)
@@ -459,110 +493,105 @@ class HTTPServer: ObservableObject {
       return result ?? self.jsonResponse(error: "Unknown error", status: .internalServerError)
     }
 
-    private func handleStreamingChatCompletion(request: ChatCompletionRequest) -> HTTPResponse {
-      let sema = DispatchSemaphore(value: 0)
-      var result: HTTPResponse?
+    // MARK: - Streaming Response Builder
 
-      Task { @MainActor in
-        do {
-          let modelName = request.model ?? self.settingsManager.defaultLLMModel
-          let startLoad = Date()
-          _ = try await self.llmService.loadModel(modelName)
-          let loadDuration = Date().timeIntervalSince(startLoad)
-          if loadDuration > 0.1 {
-            self.metricsCollector.recordLLMModelLoad(duration: loadDuration)
-          }
+    private func buildStreamingResponse(
+      text: String, toolCalls: [ToolCallInfo], modelName: String
+    ) -> HTTPResponse {
+      let chunkId = UUID().uuidString
+      let hasToolCalls = !toolCalls.isEmpty
+      var sseBody = ""
 
-          self.metricsCollector.recordLLMRequest()
-
-          var additionalContext: [String: any Sendable] = [:]
-          for item in self.settingsManager.defaultLLMAdditionalContext {
-            if let value = item.toSendableValue() {
-              additionalContext[item.key] = value
-            }
-          }
-          if let requestContext = request.additionalContext {
-            for (key, value) in requestContext {
-              additionalContext[key] = value.value
-            }
-          }
-
-          let startTime = Date()
-          let stream = try await self.llmService.generate(
-            messages: request.messages,
-            temperature: request.temperature ?? self.settingsManager.defaultLLMTemperature,
-            maxTokens: request.maxTokens ?? self.settingsManager.defaultLLMMaxTokens,
-            topP: request.topP ?? self.settingsManager.defaultLLMTopP,
-            additionalContext: additionalContext.isEmpty ? nil : additionalContext
-          )
-
-          var fullText = ""
-          var chunks: [String] = []
-
-          for await token in stream {
-            fullText += token
-            let chunk = ChatCompletionChunk(
-              id: UUID().uuidString,
-              model: modelName,
-              choices: [
-                ChatCompletionChunk.ChunkChoice(
-                  index: 0,
-                  delta: ChatCompletionChunk.Delta(role: nil, content: token),
-                  finishReason: nil
-                )
-              ]
+      func appendChunk(role: String?, content: String?, finishReason: String? = nil) {
+        let chunk = ChatCompletionChunk(
+          id: chunkId,
+          object: "chat.completion.chunk",
+          model: modelName,
+          choices: [
+            ChatCompletionChunk.Choice(
+              index: 0,
+              delta: ChatCompletionChunk.Delta(
+                role: role,
+                content: content
+              ),
+              finishReason: finishReason
             )
-
-            if let chunkData = try? self.jsonEncoder.encode(chunk),
-              let chunkString = String(data: chunkData, encoding: .utf8)
-            {
-              chunks.append("data: \(chunkString)\n\n")
-            }
-          }
-
-          // add final chunk with finish_reason
-          let finalChunk = ChatCompletionChunk(
-            id: UUID().uuidString,
-            model: modelName,
-            choices: [
-              ChatCompletionChunk.ChunkChoice(
-                index: 0,
-                delta: ChatCompletionChunk.Delta(role: nil, content: ""),
-                finishReason: "stop"
-              )
-            ]
-          )
-
-          if let chunkData = try? self.jsonEncoder.encode(finalChunk),
-            let chunkString = String(data: chunkData, encoding: .utf8)
-          {
-            chunks.append("data: \(chunkString)\n\n")
-          }
-
-          chunks.append("data: [DONE]\n\n")
-
-          let duration = Date().timeIntervalSince(startTime)
-          self.metricsCollector.recordLLMGeneration(duration: duration)
-          self.metricsCollector.recordLLMTokensGenerated(fullText.split(separator: " ").count)
-          self.metricsCollector.recordLLMRequestComplete()
-
-          let resp = HTTPResponse()
-          resp.status = .ok
-          resp.headers.contentType = "text/event-stream"
-          resp.headers["Cache-Control"] = "no-cache"
-          resp.headers["Connection"] = "keep-alive"
-          resp.body = chunks.joined().data(using: .utf8) ?? Data()
-
-          result = resp
-        } catch {
-          self.metricsCollector.recordLLMError()
-          result = self.jsonResponse(error: error.localizedDescription, status: .internalServerError)
+          ]
+        )
+        if let data = try? jsonEncoder.encode(chunk),
+          let json = String(data: data, encoding: .utf8)
+        {
+          sseBody += "data: \(json)\n\n"
         }
-        sema.signal()
       }
 
-      sema.wait()
-      return result ?? self.jsonResponse(error: "Unknown error", status: .internalServerError)
+      if hasToolCalls {
+        // Send tool calls via delta.tool_calls where function is a JSON string.
+        // home-llm's _extract_response does: [call["function"] for call in tool_calls]
+        // Then _async_stream_parse_completion checks isinstance(raw_tool_call, str)
+        // and passes it to parse_raw_tool_call which JSON-parses it.
+        var toolCallDicts: [[String: Any]] = []
+        for tc in toolCalls {
+          let toolCallJSON: [String: Any] = [
+            "name": tc.function.name,
+            "arguments": tc.function.arguments,
+          ]
+          if let data = try? JSONSerialization.data(withJSONObject: toolCallJSON, options: [.sortedKeys]),
+            let jsonStr = String(data: data, encoding: .utf8)
+          {
+            toolCallDicts.append(["function": jsonStr])
+          }
+        }
+
+        // Build the chunk manually since we need function as a string, not an object
+        let chunkDict: [String: Any] = [
+          "id": chunkId,
+          "object": "chat.completion.chunk",
+          "model": modelName,
+          "choices": [
+            [
+              "index": 0,
+              "delta": [
+                "role": "assistant",
+                "content": "",
+                "tool_calls": toolCallDicts,
+              ] as [String: Any],
+              "finish_reason": NSNull(),
+            ] as [String: Any]
+          ],
+        ]
+
+        if let data = try? JSONSerialization.data(withJSONObject: chunkDict, options: [.sortedKeys]),
+          let json = String(data: data, encoding: .utf8)
+        {
+          sseBody += "data: \(json)\n\n"
+        }
+      } else {
+        appendChunk(role: "assistant", content: text, finishReason: nil)
+      }
+
+      // Final chunk with finish_reason
+      appendChunk(role: nil, content: nil, finishReason: "stop")
+      sseBody += "data: [DONE]\n\n"
+
+      let resp = HTTPResponse()
+      resp.status = .ok
+      resp.headers.contentType = "text/event-stream"
+      resp.body = sseBody.data(using: .utf8) ?? Data()
+      return resp
+    }
+
+    // MARK: - Tool Spec Conversion
+
+    private func convertToToolSpecs(_ tools: [[String: AnyCodable]]?) -> [[String: any Sendable]]? {
+      guard let tools = tools, !tools.isEmpty else { return nil }
+      return tools.map { tool in
+        var result: [String: any Sendable] = [:]
+        for (key, codable) in tool {
+          result[key] = SendableConverter.convertToSendable(codable.value)
+        }
+        return result
+      }
     }
   #endif
 
